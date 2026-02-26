@@ -39,8 +39,47 @@ html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
 
 .card-sub {
     font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #888880;
-    margin-top: -10px; margin-bottom: 10px; min-height: 18px;
+    margin-top: -10px; margin-bottom: 4px; min-height: 18px;
 }
+
+/* Quick filter mini-buttons row */
+.qf-row {
+    display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap;
+}
+/* These are rendered via st.button with custom key, styled small via CSS override */
+div[data-qfbtn="true"] .stButton > button {
+    font-size: 0.62rem !important;
+    padding: 2px 8px !important;
+    border-radius: 20px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-weight: 500 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+div[data-qfbtn="pos"] .stButton > button {
+    border-color: #a8dfc3 !important; color: #0a7c45 !important; background: #e6f7ef !important;
+}
+div[data-qfbtn="pos"] .stButton > button:hover {
+    background: #0a7c45 !important; color: #fff !important; border-color: #0a7c45 !important;
+}
+div[data-qfbtn="neg"] .stButton > button {
+    border-color: #f5c0ba !important; color: #c0392b !important; background: #fdecea !important;
+}
+div[data-qfbtn="neg"] .stButton > button:hover {
+    background: #c0392b !important; color: #fff !important; border-color: #c0392b !important;
+}
+div[data-qfbtn="pos_active"] .stButton > button {
+    background: #0a7c45 !important; color: #fff !important; border-color: #0a7c45 !important;
+    font-size: 0.62rem !important; padding: 2px 8px !important; border-radius: 20px !important;
+    font-family: 'DM Mono', monospace !important; font-weight: 500 !important;
+}
+div[data-qfbtn="neg_active"] .stButton > button {
+    background: #c0392b !important; color: #fff !important; border-color: #c0392b !important;
+    font-size: 0.62rem !important; padding: 2px 8px !important; border-radius: 20px !important;
+    font-family: 'DM Mono', monospace !important; font-weight: 500 !important;
+}
+
 .sel-pill {
     display: inline-block; background: #1a1a1a; color: #f5f5f0;
     border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 0.62rem;
@@ -59,17 +98,20 @@ html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
     color: #7a5a00; margin-bottom: 1.2rem;
 }
 
-/* Stat boxes — clickable */
+/* Quick-filter result banner */
+.qf-banner {
+    background: #fff; border: 1.5px solid #d4d0c8; border-radius: 8px;
+    padding: 0.5rem 1rem; font-family: 'DM Mono', monospace; font-size: 0.72rem;
+    color: #555; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;
+}
+
+/* Stat boxes */
 .stat-row { display: flex; gap: 14px; margin-bottom: 1.5rem; flex-wrap: wrap; }
 .stat-box {
     background: #ffffff; border: 1.5px solid #d4d0c8; border-radius: 10px;
     padding: 0.75rem 1.2rem; min-width: 130px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: default;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
-.stat-box.clickable { cursor: pointer; transition: all 0.15s; }
-.stat-box.clickable:hover { border-color: #1a1a1a; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.stat-box.active-filter { border-color: #1a1a1a !important; background: #1a1a1a !important; }
-.stat-box.active-filter .sv, .stat-box.active-filter .sk { color: #ffffff !important; }
 .stat-box .sv { font-size: 1.6rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
 .stat-box .sk { font-family: 'DM Mono', monospace; font-size: 0.63rem; color: #888880; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 4px; }
 
@@ -94,18 +136,9 @@ html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
 .shock-neg { color: #c0392b; font-weight: 600; }
 .shock-zero { color: #888880; }
 .long-des { font-size: 0.71rem; color: #666660; margin-top: 4px; line-height: 1.45; font-family: 'Syne', sans-serif; font-weight: 400; }
-
-/* Multi-area: shock list per scenario */
 .shock-list { display: flex; flex-direction: column; gap: 3px; }
 .shock-row-item { display: flex; gap: 6px; align-items: baseline; }
 .shock-path { font-size: 0.62rem; color: #aaa; }
-
-.filter-note {
-    font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #888880;
-    margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px;
-}
-.filter-dot-pos { width:8px; height:8px; border-radius:50%; background:#0a7c45; display:inline-block; }
-.filter-dot-neg { width:8px; height:8px; border-radius:50%; background:#c0392b; display:inline-block; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -136,6 +169,11 @@ def clean_items(series):
     return sorted([str(i) for i in series.dropna().unique()
                    if str(i).strip() not in ('', 'nan')])
 
+def count_pos_neg(df_sub):
+    n_pos = int((df_sub['_shock_num'] > 0).sum())
+    n_neg = int((df_sub['_shock_num'] < 0).sum())
+    return n_pos, n_neg
+
 # ─── DATA ──────────────────────────────────────────────────────────────────────
 FILE_PATH = "ListaxMapping.xlsx"
 
@@ -150,7 +188,6 @@ def load_data():
     df = df[df['L1'].astype(str).str.strip().astype(bool)]
     df = df[df['L1'].astype(str).str.lower() != 'nan']
     df['_shock_num'] = df['ShockValue'].apply(parse_shock_value)
-
     try:
         dm = pd.read_excel(FILE_PATH, sheet_name="MAIN", header=0)
         dm = dm.iloc[:, [0, 3]].copy()
@@ -160,7 +197,6 @@ def load_data():
         dm['Long_des'] = dm['Long_des'].fillna('').astype(str).str.strip()
     except Exception:
         dm = pd.DataFrame(columns=['Stress_Scenarios', 'Long_des'])
-
     return df, dm
 
 try:
@@ -173,10 +209,14 @@ desc_map = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 defaults = {
-    'sel_l1_set': set(), 'sel_l1_single': None,
-    'sel_l2': None, 'sel_l3': None,
+    'sel_l1_set': set(),
+    'sel_l1_single': None,
+    'sel_l2': None,
+    'sel_l3': None,
     'mode': 'drill',
-    'shock_filter': 'all',   # 'all' | 'pos' | 'neg'
+    'shock_filter': 'all',
+    # quick filter: {'level': 'L1'/'L2', 'item': str, 'dir': 'pos'/'neg'}
+    'quick_filter': None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -194,6 +234,7 @@ with col_m1:
         st.session_state.sel_l2 = None
         st.session_state.sel_l3 = None
         st.session_state.shock_filter = 'all'
+        st.session_state.quick_filter = None
         st.rerun()
 with col_m2:
     if st.button("🔀 Multi-area", use_container_width=True):
@@ -201,11 +242,64 @@ with col_m2:
         st.session_state.sel_l2 = None
         st.session_state.sel_l3 = None
         st.session_state.shock_filter = 'all'
+        st.session_state.quick_filter = None
         st.rerun()
 st.markdown("---")
 
+# ─── QUICK FILTER BUTTONS (small pills under each card) ───────────────────────
+
+def quick_filter_buttons(item, df_sub, level_key):
+    """
+    Renders two small pill buttons (▲ pos, ▼ neg) under a card.
+    Uses a Streamlit container with custom data attribute via markdown trick.
+    """
+    n_pos, n_neg = count_pos_neg(df_sub)
+    qf = st.session_state.quick_filter
+    is_active_pos = qf and qf['item'] == item and qf['dir'] == 'pos' and qf['level'] == level_key
+    is_active_neg = qf and qf['item'] == item and qf['dir'] == 'neg' and qf['level'] == level_key
+
+    c_pos, c_neg, c_rest = st.columns([1, 1, 3])
+
+    with c_pos:
+        tag_pos = "pos_active" if is_active_pos else "pos"
+        st.markdown(f'<div data-qfbtn="{tag_pos}">', unsafe_allow_html=True)
+        if st.button(f"▲ {n_pos}", key=f"qf_pos_{level_key}_{item}", use_container_width=True,
+                     help=f"{n_pos} shock positivi in {item}"):
+            if is_active_pos:
+                st.session_state.quick_filter = None
+            else:
+                st.session_state.quick_filter = {'level': level_key, 'item': item, 'dir': 'pos'}
+                # clear drill selections below
+                if level_key == 'L1':
+                    st.session_state.sel_l1_single = None
+                    st.session_state.sel_l2 = None
+                    st.session_state.sel_l3 = None
+                elif level_key == 'L2':
+                    st.session_state.sel_l3 = None
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with c_neg:
+        tag_neg = "neg_active" if is_active_neg else "neg"
+        st.markdown(f'<div data-qfbtn="{tag_neg}">', unsafe_allow_html=True)
+        if st.button(f"▼ {n_neg}", key=f"qf_neg_{level_key}_{item}", use_container_width=True,
+                     help=f"{n_neg} shock negativi in {item}"):
+            if is_active_neg:
+                st.session_state.quick_filter = None
+            else:
+                st.session_state.quick_filter = {'level': level_key, 'item': item, 'dir': 'neg'}
+                if level_key == 'L1':
+                    st.session_state.sel_l1_single = None
+                    st.session_state.sel_l2 = None
+                    st.session_state.sel_l3 = None
+                elif level_key == 'L2':
+                    st.session_state.sel_l3 = None
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
 # ─── CARD RENDERER ─────────────────────────────────────────────────────────────
-def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
+
+def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_qf=False):
     if not items: return
     ncols = min(len(items), 4)
     cols = st.columns(ncols)
@@ -225,7 +319,14 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
                 f'&nbsp;·&nbsp;{n_sc} scenari</div>',
                 unsafe_allow_html=True
             )
+            # Quick filter mini-buttons
+            if show_qf:
+                quick_filter_buttons(item, sub, col_name)
+
             if clicked:
+                # Clicking the main card clears any quick filter for that item
+                if st.session_state.quick_filter and st.session_state.quick_filter.get('item') == item:
+                    st.session_state.quick_filter = None
                 if multi:
                     if item in st.session_state.sel_l1_set:
                         st.session_state.sel_l1_set.discard(item)
@@ -243,160 +344,147 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
                     st.session_state.shock_filter = 'all'
                 st.rerun()
 
-# ─── STAT BOXES WITH FILTER ────────────────────────────────────────────────────
+# ─── STAT BOXES ────────────────────────────────────────────────────────────────
+
 def render_stat_boxes(df_sub):
-    """Render stat boxes; clicking Positivi/Negativi filters the table below."""
     mean_v = mean_shock_for_group(df_sub)
     n_sc   = df_sub['Scenario'].nunique()
     n_pos  = int((df_sub['_shock_num'] > 0).sum())
     n_neg  = int((df_sub['_shock_num'] < 0).sum())
     d      = shock_direction(mean_v)
     lbl, col_hex = direction_label(d)
-
     cur_filter = st.session_state.shock_filter
 
-    # Render using streamlit columns with custom styling
-    c0, c1, c2, c3, c4 = st.columns([1.4, 1.8, 1.4, 1.4, 6])
-
+    c0, c1, c2, c3, _ = st.columns([1.4, 1.8, 1.4, 1.4, 5])
     with c0:
-        st.markdown(f"""
-        <div class="stat-box">
-            <div class="sv">{n_sc}</div>
-            <div class="sk">Scenari totali</div>
-        </div>""", unsafe_allow_html=True)
-
+        st.markdown(f'<div class="stat-box"><div class="sv">{n_sc}</div><div class="sk">Scenari totali</div></div>', unsafe_allow_html=True)
     with c1:
-        st.markdown(f"""
-        <div class="stat-box">
-            <div class="sv" style="color:{col_hex};font-size:1.05rem;">{lbl}</div>
-            <div class="sk">Direzione prevalente</div>
-        </div>""", unsafe_allow_html=True)
-
+        st.markdown(f'<div class="stat-box"><div class="sv" style="color:{col_hex};font-size:1.05rem;">{lbl}</div><div class="sk">Direzione prevalente</div></div>', unsafe_allow_html=True)
     with c2:
-        active_pos = cur_filter == 'pos'
-        if st.button(
-            f"▲ {n_pos}  positivi",
-            key="filter_pos",
-            use_container_width=True,
-            help="Filtra solo scenari con shock positivo"
-        ):
-            st.session_state.shock_filter = 'all' if active_pos else 'pos'
+        if st.button(f"▲ {n_pos}  positivi", key="filter_pos", use_container_width=True):
+            st.session_state.shock_filter = 'all' if cur_filter == 'pos' else 'pos'
             st.rerun()
-        if active_pos:
+        if cur_filter == 'pos':
             st.markdown('<div style="height:3px;background:#0a7c45;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
-
     with c3:
-        active_neg = cur_filter == 'neg'
-        if st.button(
-            f"▼ {n_neg}  negativi",
-            key="filter_neg",
-            use_container_width=True,
-            help="Filtra solo scenari con shock negativo"
-        ):
-            st.session_state.shock_filter = 'all' if active_neg else 'neg'
+        if st.button(f"▼ {n_neg}  negativi", key="filter_neg", use_container_width=True):
+            st.session_state.shock_filter = 'all' if cur_filter == 'neg' else 'neg'
             st.rerun()
-        if active_neg:
+        if cur_filter == 'neg':
             st.markdown('<div style="height:3px;background:#c0392b;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
-    return n_pos, n_neg
-
 # ─── SCENARIO TABLE ────────────────────────────────────────────────────────────
-def render_scenario_table(df_sub, multi_mode=False):
-    """
-    Drill mode: one row per (Scenario, L3 path), single shock value.
-    Multi mode: one row per Scenario, list all shock values for selected L1 areas.
-    """
-    n_pos, n_neg = render_stat_boxes(df_sub)
 
-    # Apply filter
+def render_scenario_table(df_sub, multi_mode=False, banner_text=None):
+    render_stat_boxes(df_sub)
+
     f = st.session_state.shock_filter
     if f == 'pos':
-        df_filtered = df_sub[df_sub['_shock_num'] > 0]
-        if df_filtered.empty:
-            st.info("Nessuno scenario con shock positivo.")
-            return
+        df_filt = df_sub[df_sub['_shock_num'] > 0]
     elif f == 'neg':
-        df_filtered = df_sub[df_sub['_shock_num'] < 0]
-        if df_filtered.empty:
-            st.info("Nessuno scenario con shock negativo.")
-            return
+        df_filt = df_sub[df_sub['_shock_num'] < 0]
     else:
-        df_filtered = df_sub
+        df_filt = df_sub
+
+    if banner_text:
+        st.markdown(f'<div class="qf-banner">{banner_text}</div>', unsafe_allow_html=True)
+
+    if df_filt.empty:
+        st.info("Nessuno scenario corrisponde al filtro selezionato.")
+        return
 
     if not multi_mode:
-        # ── DRILL MODE: simple table, one row per data row
         rows_html = ""
-        for _, row in df_filtered.sort_values('Scenario').iterrows():
+        for _, row in df_filt.sort_values('Scenario').iterrows():
             shock_num = row['_shock_num']
             shock_raw = str(row['ShockValue']) if not pd.isna(row['ShockValue']) else "—"
             long_des  = desc_map.get(str(row['Scenario']).strip(), '')
-
             try:   is_num = not np.isnan(float(shock_num))
             except: is_num = False
-
             cls   = ("shock-pos" if shock_num > 0 else "shock-neg") if is_num and shock_num != 0 else "shock-zero"
             arrow = ("▲ " if shock_num > 0 else "▼ ") if is_num and shock_num != 0 else ""
             des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
-
-            rows_html += f"""
-            <tr>
-                <td><strong>{row['Scenario']}</strong>{des_html}</td>
-                <td class='{cls}'>{arrow}{shock_raw}</td>
-            </tr>"""
+            rows_html += f"<tr><td><strong>{row['Scenario']}</strong>{des_html}</td><td class='{cls}'>{arrow}{shock_raw}</td></tr>"
 
         st.markdown(f"""
         <table class="scenario-table">
             <thead><tr><th>Scenario</th><th>Shock Value</th></tr></thead>
             <tbody>{rows_html}</tbody>
         </table>""", unsafe_allow_html=True)
-
     else:
-        # ── MULTI MODE: group by Scenario, show all shock values per selected areas
-        # Each scenario can have multiple rows (one per L1/L2/L3 path)
         rows_html = ""
-        scenarios = sorted(df_filtered['Scenario'].unique())
-
-        for scenario in scenarios:
-            sc_rows = df_filtered[df_filtered['Scenario'] == scenario]
+        for scenario in sorted(df_filt['Scenario'].unique()):
+            sc_rows  = df_filt[df_filt['Scenario'] == scenario]
             long_des = desc_map.get(str(scenario).strip(), '')
             des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
-
-            # Build list of shock entries
             shock_items = ""
             for _, r in sc_rows.iterrows():
-                shock_num = r['_shock_num']
-                shock_raw = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
-                try:   is_num = not np.isnan(float(shock_num))
+                sn = r['_shock_num']
+                sr = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
+                try:   is_num = not np.isnan(float(sn))
                 except: is_num = False
-                cls   = ("shock-pos" if shock_num > 0 else "shock-neg") if is_num and shock_num != 0 else "shock-zero"
-                arrow = ("▲ " if shock_num > 0 else "▼ ") if is_num and shock_num != 0 else ""
+                cls   = ("shock-pos" if sn > 0 else "shock-neg") if is_num and sn != 0 else "shock-zero"
+                arrow = ("▲ " if sn > 0 else "▼ ") if is_num and sn != 0 else ""
                 path  = " › ".join([str(r[c]) for c in ['L1','L2','L3'] if str(r.get(c,'')).strip() not in ('','nan')])
-                shock_items += f'<div class="shock-row-item"><span class="{cls}">{arrow}{shock_raw}</span><span class="shock-path">{path}</span></div>'
-
-            rows_html += f"""
-            <tr>
-                <td><strong>{scenario}</strong>{des_html}</td>
-                <td><div class="shock-list">{shock_items}</div></td>
-            </tr>"""
+                shock_items += f'<div class="shock-row-item"><span class="{cls}">{arrow}{sr}</span><span class="shock-path">{path}</span></div>'
+            rows_html += f"<tr><td><strong>{scenario}</strong>{des_html}</td><td><div class='shock-list'>{shock_items}</div></td></tr>"
 
         st.markdown(f"""
         <table class="scenario-table">
             <thead><tr><th>Scenario</th><th>Shock per area selezionata</th></tr></thead>
             <tbody>{rows_html}</tbody>
         </table>""", unsafe_allow_html=True)
-
         st.markdown(
             '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:#aaa;margin-top:8px;">'
-            '⚠️ I valori mostrati sono quelli raw dall\'Excel per ciascuna combinazione L1 › L2 › L3, non medie. '
-            'La direzione ▲/▼ sulle card è calcolata come media degli shock numerici del gruppo.</div>',
-            unsafe_allow_html=True
-        )
+            '⚠️ Valori raw dall\'Excel per ciascun path L1 › L2 › L3 — non medie.</div>',
+            unsafe_allow_html=True)
+
+# ─── QUICK FILTER RESULT (shown when a quick filter is active) ─────────────────
+
+def maybe_show_quick_filter_result(df_source):
+    """If a quick_filter is set, show the filtered table right after the cards."""
+    qf = st.session_state.quick_filter
+    if not qf:
+        return False
+    col_name = qf['level']
+    item     = qf['item']
+    direction = qf['dir']
+
+    df_item = df_source[df_source[col_name] == item]
+    if direction == 'pos':
+        df_show = df_item[df_item['_shock_num'] > 0]
+        dir_label = "▲ Shock Positivi"
+        dir_color = "#0a7c45"
+    else:
+        df_show = df_item[df_item['_shock_num'] < 0]
+        dir_label = "▼ Shock Negativi"
+        dir_color = "#c0392b"
+
+    st.markdown(
+        f'<div class="section-header" style="color:{dir_color};">'
+        f'{dir_label} — {item}</div>',
+        unsafe_allow_html=True
+    )
+
+    col_reset, _ = st.columns([1.5, 8])
+    with col_reset:
+        if st.button("✕ Chiudi filtro", key="close_qf"):
+            st.session_state.quick_filter = None
+            st.rerun()
+
+    if df_show.empty:
+        st.info(f"Nessuno scenario con shock {'positivo' if direction == 'pos' else 'negativo'} in {item}.")
+    else:
+        render_scenario_table(df_show, multi_mode=False)
+
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MODE A — DRILL-DOWN
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.mode == 'drill':
+
     parts = ['<span>All</span>']
     if st.session_state.sel_l1_single:
         parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l1_single}</span>')
@@ -406,12 +494,19 @@ if st.session_state.mode == 'drill':
         parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l3}</span>')
     st.markdown(f'<div class="breadcrumb">{"".join(parts)}</div>', unsafe_allow_html=True)
 
+    # ── L1 cards + quick filter buttons
     st.markdown('<div class="section-header">Mapping Livello 1 — Asset Class</div>', unsafe_allow_html=True)
-    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False, show_qf=True)
 
-    if st.session_state.sel_l1_single:
+    # If a quick filter is active at L1 level, show results and stop drilling
+    qf = st.session_state.quick_filter
+    if qf and qf['level'] == 'L1':
+        maybe_show_quick_filter_result(df)
+
+    elif st.session_state.sel_l1_single:
         df_l1 = df[df['L1'] == st.session_state.sel_l1_single]
         l2_items = clean_items(df_l1['L2'])
+
         col_b, _ = st.columns([1, 5])
         with col_b:
             if st.button("← Reset L1", key="back_l1"):
@@ -419,39 +514,47 @@ if st.session_state.mode == 'drill':
                 st.session_state.sel_l2 = None
                 st.session_state.sel_l3 = None
                 st.session_state.shock_filter = 'all'
+                st.session_state.quick_filter = None
                 st.rerun()
+
         if l2_items:
             st.markdown(f'<div class="section-header">Livello 2 — {st.session_state.sel_l1_single}</div>', unsafe_allow_html=True)
-            render_cards(l2_items, df_l1, 'L2', 'sel_l2', multi=False)
+            render_cards(l2_items, df_l1, 'L2', 'sel_l2', multi=False, show_qf=True)
 
-    if st.session_state.sel_l1_single and st.session_state.sel_l2:
-        df_l2 = df[(df['L1'] == st.session_state.sel_l1_single) & (df['L2'] == st.session_state.sel_l2)]
-        l3_items = clean_items(df_l2['L3'])
-        col_b2, _ = st.columns([1, 5])
-        with col_b2:
-            if st.button("← Reset L2", key="back_l2"):
-                st.session_state.sel_l2 = None
-                st.session_state.sel_l3 = None
-                st.session_state.shock_filter = 'all'
-                st.rerun()
-        if l3_items:
-            st.markdown(f'<div class="section-header">Livello 3 — {st.session_state.sel_l2}</div>', unsafe_allow_html=True)
-            render_cards(l3_items, df_l2, 'L3', 'sel_l3', multi=False)
+            # Quick filter at L2 level
+            if qf and qf['level'] == 'L2':
+                maybe_show_quick_filter_result(df_l1)
 
-    if st.session_state.sel_l1_single and st.session_state.sel_l2 and st.session_state.sel_l3:
-        df_l3 = df[
-            (df['L1'] == st.session_state.sel_l1_single) &
-            (df['L2'] == st.session_state.sel_l2) &
-            (df['L3'] == st.session_state.sel_l3)
-        ]
-        col_b3, _ = st.columns([1, 5])
-        with col_b3:
-            if st.button("← Reset L3", key="back_l3"):
-                st.session_state.sel_l3 = None
-                st.session_state.shock_filter = 'all'
-                st.rerun()
-        st.markdown(f'<div class="section-header">Scenari — {st.session_state.sel_l3}</div>', unsafe_allow_html=True)
-        render_scenario_table(df_l3, multi_mode=False)
+            elif st.session_state.sel_l2:
+                df_l2 = df_l1[df_l1['L2'] == st.session_state.sel_l2]
+                l3_items = clean_items(df_l2['L3'])
+
+                col_b2, _ = st.columns([1, 5])
+                with col_b2:
+                    if st.button("← Reset L2", key="back_l2"):
+                        st.session_state.sel_l2 = None
+                        st.session_state.sel_l3 = None
+                        st.session_state.shock_filter = 'all'
+                        st.session_state.quick_filter = None
+                        st.rerun()
+
+                if l3_items:
+                    st.markdown(f'<div class="section-header">Livello 3 — {st.session_state.sel_l2}</div>', unsafe_allow_html=True)
+                    render_cards(l3_items, df_l2, 'L3', 'sel_l3', multi=False, show_qf=False)
+
+                if st.session_state.sel_l3:
+                    df_l3 = df_l2[df_l2['L3'] == st.session_state.sel_l3]
+
+                    col_b3, _ = st.columns([1, 5])
+                    with col_b3:
+                        if st.button("← Reset L3", key="back_l3"):
+                            st.session_state.sel_l3 = None
+                            st.session_state.shock_filter = 'all'
+                            st.session_state.quick_filter = None
+                            st.rerun()
+
+                    st.markdown(f'<div class="section-header">Scenari — {st.session_state.sel_l3}</div>', unsafe_allow_html=True)
+                    render_scenario_table(df_l3, multi_mode=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -466,7 +569,7 @@ else:
     )
 
     st.markdown('<div class="section-header">Seleziona Asset Class (multi-selezione)</div>', unsafe_allow_html=True)
-    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_set', multi=True)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_set', multi=True, show_qf=False)
 
     if st.session_state.sel_l1_set:
         pills_html = " ".join([f'<span class="sel-pill">✓ {x}</span>' for x in sorted(st.session_state.sel_l1_set)])
@@ -480,23 +583,22 @@ else:
                 st.rerun()
 
         selected_list = list(st.session_state.sel_l1_set)
-
         if len(selected_list) == 1:
             df_show = df[df['L1'].isin(selected_list)].copy()
             label = f"Scenari in: {selected_list[0]}"
+            is_multi = False
         else:
-            # Scenari comuni a tutte le L1 selezionate
             sets_per_l1 = [set(df[df['L1'] == l1]['Scenario'].unique()) for l1 in selected_list]
             common = sets_per_l1[0].intersection(*sets_per_l1[1:])
             df_show = df[df['L1'].isin(selected_list) & df['Scenario'].isin(common)].copy()
             label = f"Scenari comuni a: {' · '.join(sorted(selected_list))}"
+            is_multi = True
 
         st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
-
         if df_show.empty:
             st.info("Nessuno scenario stessa contemporaneamente tutte le aree selezionate.")
         else:
-            render_scenario_table(df_show, multi_mode=(len(selected_list) > 1))
+            render_scenario_table(df_show, multi_mode=is_multi)
     else:
         st.markdown(
             '<div style="font-family:DM Mono,monospace;font-size:0.78rem;color:#888880;margin-top:1rem;">'
