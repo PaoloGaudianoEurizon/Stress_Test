@@ -234,9 +234,11 @@ def mean_shock_for_group(df_sub):
     vals = df_sub['_shock_num'].dropna()
     return vals.mean() if len(vals) else np.nan
 
+FILE_PATH = "ListaxMapping.xlsx"
+
 @st.cache_data
-def load_data(file):
-    df = pd.read_excel(file, sheet_name="Pivot", header=0)
+def load_data():
+    df = pd.read_excel(FILE_PATH, sheet_name="Pivot", header=0)
     df.columns = ['Scenario', 'L1', 'L2', 'L3', 'ShockValue'] + list(df.columns[5:])
     df = df[['Scenario', 'L1', 'L2', 'L3', 'ShockValue']].dropna(subset=['L1'])
     df['_shock_num'] = df['ShockValue'].apply(parse_shock_value)
@@ -250,14 +252,11 @@ def load_data(file):
 st.markdown('<div class="main-title">Stress Test Mapping</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Asset class drill-down · Shock direction analysis</div>', unsafe_allow_html=True)
 
-# File upload
-uploaded = st.file_uploader("Carica il file Excel (ListaxMapping.xlsx)", type=["xlsx", "xls"])
-
-if not uploaded:
-    st.info("⬆️  Carica il file **ListaxMapping.xlsx** per iniziare.")
+try:
+    df = load_data()
+except FileNotFoundError:
+    st.error(f"File `{FILE_PATH}` non trovato nella repository. Verifica che sia nella root del progetto.")
     st.stop()
-
-df = load_data(uploaded)
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 if 'sel_l1' not in st.session_state: st.session_state.sel_l1 = None
