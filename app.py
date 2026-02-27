@@ -6,106 +6,111 @@ import re
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
 
-# ─── CSS ───────────────────────────────────────────────────────────────────────
+# ─── CSS — stile ispirato ad "Analisi BEL" (sfondo bianco, font sistema, toni blu/grigio) ───
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+/* ── Background & base ── */
+.stApp { background: #f0f2f6; }
 
-html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
-.stApp { background: #f5f5f0; color: #1a1a1a; }
-
-.stButton > button {
-    background: #ffffff; color: #1a1a1a;
-    border: 1.5px solid #d4d0c8; border-radius: 8px;
-    font-family: 'Syne', sans-serif; font-weight: 600; font-size: 0.85rem;
-    transition: all 0.15s ease;
-}
-.stButton > button:hover { border-color: #1a1a1a; background: #1a1a1a; color: #ffffff; }
-
+/* ── Main title ── */
 .main-title {
-    font-size: 2.4rem; font-weight: 800; letter-spacing: -1px; color: #1a1a1a;
-    border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4rem; margin-bottom: 0.3rem;
+    font-size: 2rem; font-weight: 700; color: #1f2937;
+    border-bottom: 3px solid #3b82f6; padding-bottom: 0.4rem;
+    margin-bottom: 0.2rem;
 }
 .subtitle {
-    font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #888880;
-    margin-bottom: 2rem; letter-spacing: 0.08em; text-transform: uppercase;
+    font-size: 0.8rem; color: #6b7280; margin-bottom: 1.8rem;
+    letter-spacing: 0.04em; text-transform: uppercase;
 }
 .breadcrumb {
-    font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #888880;
-    margin-bottom: 1.5rem; letter-spacing: 0.06em;
+    font-size: 0.75rem; color: #6b7280; margin-bottom: 1.2rem;
 }
-.breadcrumb span { color: #1a1a1a; font-weight: 600; }
-.breadcrumb .sep { color: #c8c4bc; margin: 0 6px; }
+.breadcrumb span { color: #1f2937; font-weight: 600; }
+.breadcrumb .sep { color: #9ca3af; margin: 0 6px; }
 
-.card-sub {
-    font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #888880;
-    margin-top: -10px; margin-bottom: 10px; min-height: 18px;
-}
-.sel-pill {
-    display: inline-block; background: #1a1a1a; color: #f5f5f0;
-    border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 0.62rem;
-    padding: 1px 8px; margin: 2px; letter-spacing: 0.04em;
-}
+/* ── Section headers ── */
 .section-header {
-    font-size: 0.68rem; font-family: 'DM Mono', monospace; text-transform: uppercase;
-    letter-spacing: 0.14em; color: #888880; margin: 1.8rem 0 0.9rem;
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #6b7280; margin: 1.6rem 0 0.8rem;
     display: flex; align-items: center; gap: 10px;
 }
-.section-header::after { content: ''; flex: 1; height: 1px; background: #d4d0c8; }
+.section-header::after { content: ''; flex: 1; height: 1px; background: #d1d5db; }
 
+/* ── Card subtitle ── */
+.card-sub {
+    font-size: 0.68rem; color: #6b7280;
+    margin-top: -10px; margin-bottom: 8px; min-height: 16px;
+}
+
+/* ── Selected pill ── */
+.sel-pill {
+    display: inline-block; background: #3b82f6; color: #ffffff;
+    border-radius: 4px; font-size: 0.65rem;
+    padding: 2px 9px; margin: 2px; letter-spacing: 0.03em;
+}
+
+/* ── Hint box (same tone as Streamlit info) ── */
 .hint-box {
-    background: #fff8e8; border: 1.5px solid #f0d080; border-radius: 8px;
-    padding: 0.6rem 1rem; font-family: 'DM Mono', monospace; font-size: 0.72rem;
-    color: #7a5a00; margin-bottom: 1.2rem;
+    background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
+    padding: 0.6rem 1rem; font-size: 0.75rem;
+    color: #1d4ed8; margin-bottom: 1.2rem;
 }
 
-/* Stat boxes — clickable */
-.stat-row { display: flex; gap: 14px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+/* ── Stat boxes ── */
+.stat-row { display: flex; gap: 14px; margin-bottom: 1.4rem; flex-wrap: wrap; }
 .stat-box {
-    background: #ffffff; border: 1.5px solid #d4d0c8; border-radius: 10px;
+    background: #ffffff; border: 1.5px solid #e5e7eb; border-radius: 10px;
     padding: 0.75rem 1.2rem; min-width: 130px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: default;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
-.stat-box.clickable { cursor: pointer; transition: all 0.15s; }
-.stat-box.clickable:hover { border-color: #1a1a1a; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.stat-box.active-filter { border-color: #1a1a1a !important; background: #1a1a1a !important; }
-.stat-box.active-filter .sv, .stat-box.active-filter .sk { color: #ffffff !important; }
-.stat-box .sv { font-size: 1.6rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
-.stat-box .sk { font-family: 'DM Mono', monospace; font-size: 0.63rem; color: #888880; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 4px; }
+.stat-box .sv { font-size: 1.6rem; font-weight: 700; color: #1f2937; line-height: 1; }
+.stat-box .sk { font-size: 0.65rem; color: #6b7280; text-transform: uppercase;
+    letter-spacing: 0.07em; margin-top: 4px; }
 
-/* Scenario table */
+/* ── Scenario table ── */
 .scenario-table {
-    width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace;
-    font-size: 0.78rem; background: #ffffff; border-radius: 10px;
-    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    width: 100%; border-collapse: collapse; font-size: 0.8rem;
+    background: #ffffff; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
 }
 .scenario-table th {
-    background: #1a1a1a; color: #f5f5f0; text-transform: uppercase;
-    letter-spacing: 0.08em; padding: 11px 16px; text-align: left;
-    font-weight: 500; font-size: 0.7rem;
+    background: #3b82f6; color: #ffffff; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 11px 16px; text-align: left;
+    font-weight: 600; font-size: 0.72rem;
 }
 .scenario-table td {
-    padding: 10px 16px; border-bottom: 1px solid #f0ede6;
-    color: #2a2a2a; vertical-align: top;
+    padding: 10px 16px; border-bottom: 1px solid #f3f4f6;
+    color: #374151; vertical-align: top;
 }
 .scenario-table tr:last-child td { border-bottom: none; }
-.scenario-table tr:hover td { background: #fafaf7; }
-.shock-pos { color: #0a7c45; font-weight: 600; }
-.shock-neg { color: #c0392b; font-weight: 600; }
-.shock-zero { color: #888880; }
-.long-des { font-size: 0.71rem; color: #666660; margin-top: 4px; line-height: 1.45; font-family: 'Syne', sans-serif; font-weight: 400; }
+.scenario-table tr:hover td { background: #f9fafb; }
 
-/* Multi-area: shock list per scenario */
+/* ── Shock colours ── */
+.shock-pos { color: #15803d; font-weight: 600; }
+.shock-neg { color: #b91c1c; font-weight: 600; }
+.shock-zero { color: #6b7280; }
+
+/* ── Long description under scenario name ── */
+.long-des {
+    font-size: 0.72rem; color: #6b7280;
+    margin-top: 4px; line-height: 1.45;
+}
+
+/* ── Multi-mode shock list ── */
 .shock-list { display: flex; flex-direction: column; gap: 3px; }
 .shock-row-item { display: flex; gap: 6px; align-items: baseline; }
-.shock-path { font-size: 0.62rem; color: #aaa; }
+.shock-path { font-size: 0.63rem; color: #9ca3af; }
 
-.filter-note {
-    font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #888880;
-    margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px;
+/* ── Buttons ── */
+.stButton > button {
+    background: #ffffff; color: #374151;
+    border: 1.5px solid #d1d5db; border-radius: 8px;
+    font-weight: 600; font-size: 0.85rem;
+    transition: all 0.15s ease;
 }
-.filter-dot-pos { width:8px; height:8px; border-radius:50%; background:#0a7c45; display:inline-block; }
-.filter-dot-neg { width:8px; height:8px; border-radius:50%; background:#c0392b; display:inline-block; }
+.stButton > button:hover {
+    border-color: #3b82f6; background: #eff6ff; color: #1d4ed8;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -128,9 +133,9 @@ def mean_shock_for_group(df_sub):
     return vals.mean() if len(vals) else np.nan
 
 def direction_label(d):
-    return {"pos": ("▲ Positivo", "#0a7c45"),
-            "neg": ("▼ Negativo", "#c0392b"),
-            "mix": ("~ Misto",    "#b7770d")}[d]
+    return {"pos": ("▲ Positivo", "#15803d"),
+            "neg": ("▼ Negativo", "#b91c1c"),
+            "mix": ("~ Misto",    "#b45309")}[d]
 
 def clean_items(series):
     return sorted([str(i) for i in series.dropna().unique()
@@ -176,14 +181,14 @@ defaults = {
     'sel_l1_set': set(), 'sel_l1_single': None,
     'sel_l2': None, 'sel_l3': None,
     'mode': 'drill',
-    'shock_filter': 'all',   # 'all' | 'pos' | 'neg'
+    'shock_filter': 'all',
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # ─── HEADER ────────────────────────────────────────────────────────────────────
-st.markdown('<div class="main-title">Stress Test Mapping</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📊 Stress Test Mapping</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Asset class drill-down · Shock direction analysis</div>', unsafe_allow_html=True)
 
 col_m1, col_m2, col_m3 = st.columns([2, 2, 8])
@@ -245,7 +250,6 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
 
 # ─── STAT BOXES WITH FILTER ────────────────────────────────────────────────────
 def render_stat_boxes(df_sub):
-    """Render stat boxes; clicking Positivi/Negativi filters the table below."""
     mean_v = mean_shock_for_group(df_sub)
     n_sc   = df_sub['Scenario'].nunique()
     n_pos  = int((df_sub['_shock_num'] > 0).sum())
@@ -255,7 +259,6 @@ def render_stat_boxes(df_sub):
 
     cur_filter = st.session_state.shock_filter
 
-    # Render using streamlit columns with custom styling
     c0, c1, c2, c3, c4 = st.columns([1.4, 1.8, 1.4, 1.4, 6])
 
     with c0:
@@ -283,7 +286,7 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_pos else 'pos'
             st.rerun()
         if active_pos:
-            st.markdown('<div style="height:3px;background:#0a7c45;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:3px;background:#15803d;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
     with c3:
         active_neg = cur_filter == 'neg'
@@ -296,19 +299,14 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_neg else 'neg'
             st.rerun()
         if active_neg:
-            st.markdown('<div style="height:3px;background:#c0392b;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:3px;background:#b91c1c;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
     return n_pos, n_neg
 
 # ─── SCENARIO TABLE ────────────────────────────────────────────────────────────
 def render_scenario_table(df_sub, multi_mode=False):
-    """
-    Drill mode: one row per (Scenario, L3 path), single shock value.
-    Multi mode: one row per Scenario, list all shock values for selected L1 areas.
-    """
     n_pos, n_neg = render_stat_boxes(df_sub)
 
-    # Apply filter
     f = st.session_state.shock_filter
     if f == 'pos':
         df_filtered = df_sub[df_sub['_shock_num'] > 0]
@@ -324,7 +322,6 @@ def render_scenario_table(df_sub, multi_mode=False):
         df_filtered = df_sub
 
     if not multi_mode:
-        # ── DRILL MODE: simple table, one row per data row
         rows_html = ""
         for _, row in df_filtered.sort_values('Scenario').iterrows():
             shock_num = row['_shock_num']
@@ -351,8 +348,6 @@ def render_scenario_table(df_sub, multi_mode=False):
         </table>""", unsafe_allow_html=True)
 
     else:
-        # ── MULTI MODE: group by Scenario, show all shock values per selected areas
-        # Each scenario can have multiple rows (one per L1/L2/L3 path)
         rows_html = ""
         scenarios = sorted(df_filtered['Scenario'].unique())
 
@@ -361,7 +356,6 @@ def render_scenario_table(df_sub, multi_mode=False):
             long_des = desc_map.get(str(scenario).strip(), '')
             des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
 
-            # Build list of shock entries
             shock_items = ""
             for _, r in sc_rows.iterrows():
                 shock_num = r['_shock_num']
@@ -386,7 +380,7 @@ def render_scenario_table(df_sub, multi_mode=False):
         </table>""", unsafe_allow_html=True)
 
         st.markdown(
-            '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:#aaa;margin-top:8px;">'
+            '<div style="font-size:0.65rem;color:#9ca3af;margin-top:8px;">'
             '⚠️ I valori mostrati sono quelli raw dall\'Excel per ciascuna combinazione L1 › L2 › L3, non medie. '
             'La direzione ▲/▼ sulle card è calcolata come media degli shock numerici del gruppo.</div>',
             unsafe_allow_html=True
@@ -485,7 +479,6 @@ else:
             df_show = df[df['L1'].isin(selected_list)].copy()
             label = f"Scenari in: {selected_list[0]}"
         else:
-            # Scenari comuni a tutte le L1 selezionate
             sets_per_l1 = [set(df[df['L1'] == l1]['Scenario'].unique()) for l1 in selected_list]
             common = sets_per_l1[0].intersection(*sets_per_l1[1:])
             df_show = df[df['L1'].isin(selected_list) & df['Scenario'].isin(common)].copy()
@@ -494,12 +487,12 @@ else:
         st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
 
         if df_show.empty:
-            st.info("Nessuno scenario stessa contemporaneamente tutte le aree selezionate.")
+            st.info("Nessuno scenario presente contemporaneamente in tutte le aree selezionate.")
         else:
             render_scenario_table(df_show, multi_mode=(len(selected_list) > 1))
     else:
         st.markdown(
-            '<div style="font-family:DM Mono,monospace;font-size:0.78rem;color:#888880;margin-top:1rem;">'
+            '<div style="font-size:0.78rem;color:#6b7280;margin-top:1rem;">'
             '← Clicca su una o più asset class per visualizzare gli scenari.</div>',
             unsafe_allow_html=True
         )
@@ -507,7 +500,7 @@ else:
 # ─── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown(
-    '<div style="font-family:DM Mono,monospace;font-size:0.6rem;color:#c8c4bc;text-align:center;">'
+    '<div style="font-size:0.6rem;color:#9ca3af;text-align:center;">'
     'Stress Test Dashboard · ListaxMapping / Pivot · MAIN</div>',
     unsafe_allow_html=True
 )
