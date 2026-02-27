@@ -144,10 +144,12 @@ FILE_PATH = "ListaxMapping.xlsx"
 @st.cache_data
 def load_data():
     df = pd.read_excel(FILE_PATH, sheet_name="Pivot", header=0)
-    df.columns = ['Scenario', 'L1', 'L2', 'L3', 'ShockValue'] + list(df.columns[5:])
-    df = df[['Scenario', 'L1', 'L2', 'L3', 'ShockValue']].copy()
+    # Rinomina le 6 colonne: le prime 5 note + col F = dettaglio
+    df.columns = ['Scenario', 'L1', 'L2', 'L3', 'ShockValue', 'ColF'] + list(df.columns[6:])
+    df = df[['Scenario', 'L1', 'L2', 'L3', 'ShockValue', 'ColF']].copy()
     for col in ['Scenario', 'L1', 'L2', 'L3']:
         df[col] = df[col].ffill()
+    df['ColF'] = df['ColF'].fillna('').astype(str).str.strip()
     df = df.dropna(subset=['L1'])
     df = df[df['L1'].astype(str).str.strip().astype(bool)]
     df = df[df['L1'].astype(str).str.lower() != 'nan']
@@ -163,29 +165,15 @@ def load_data():
     except Exception:
         dm = pd.DataFrame(columns=['Stress_Scenarios', 'Long_des'])
 
-    # Carica sheet 'Lista Scenari' col F (index 5) = info aggiuntiva per export
-    try:
-        ls = pd.read_excel(FILE_PATH, sheet_name="Lista Scenari", header=0)
-        # Col A (index 0) = Scenario name, Col F (index 5) = extra info
-        ls_cols = ls.columns.tolist()
-        ls_exp  = ls.iloc[:, [0, 5]].copy()
-        ls_exp.columns = ['Scenario', 'ExtraInfo']
-        ls_exp = ls_exp.dropna(subset=['Scenario'])
-        ls_exp['Scenario']   = ls_exp['Scenario'].astype(str).str.strip()
-        ls_exp['ExtraInfo']  = ls_exp['ExtraInfo'].fillna('').astype(str).str.strip()
-    except Exception:
-        ls_exp = pd.DataFrame(columns=['Scenario', 'ExtraInfo'])
-
-    return df, dm, ls_exp
+    return df, dm
 
 try:
-    df, dm, ls_exp = load_data()
+    df, dm = load_data()
 except FileNotFoundError:
     st.error(f"File `{FILE_PATH}` non trovato nella repository.")
     st.stop()
 
-desc_map  = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
-extra_map = dict(zip(ls_exp['Scenario'], ls_exp['ExtraInfo']))
+desc_map = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 defaults = {
@@ -260,24 +248,22 @@ components.html("""
 import io
 
 # ─── EXPORT ────────────────────────────────────────────────────────────────────
-def build_export_bytes(df_sub, label="export"):
+def build_export_bytes(df_sub):
     """
-    Builds an Excel file (bytes) from df_sub, one row per (Scenario, L3 factor).
-    Columns: Scenario | Descrizione | ExtraInfo (col F Lista Scenari) | L1 | L2 | L3 | ShockValue
+    Builds an Excel file from df_sub.
+    Columns: Scenario | Descrizione | Dettaglio (col F Pivot) | L1 | L2 | L3 | ShockValue
     """
     rows = []
     for _, r in df_sub.sort_values(['Scenario', 'L1', 'L2', 'L3']).iterrows():
-        scenario  = str(r['Scenario'])
-        long_des  = desc_map.get(scenario.strip(), '')
-        extra     = extra_map.get(scenario.strip(), '')
+        scenario = str(r['Scenario'])
         rows.append({
-            'Scenario':     scenario,
-            'Descrizione':  long_des,
-            'Info (col F)': extra,
-            'L1':           str(r.get('L1', '')),
-            'L2':           str(r.get('L2', '')),
-            'L3':           str(r.get('L3', '')),
-            'ShockValue':   str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
+            'Scenario':   scenario,
+            'Descrizione': desc_map.get(scenario.strip(), ''),
+            'Dettaglio':   str(r.get('ColF', '')),
+            'L1':          str(r.get('L1', '')),
+            'L2':          str(r.get('L2', '')),
+            'L3':          str(r.get('L3', '')),
+            'ShockValue':  str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
         })
     export_df = pd.DataFrame(rows)
 
@@ -285,10 +271,9 @@ def build_export_bytes(df_sub, label="export"):
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         export_df.to_excel(writer, index=False, sheet_name='Scenari')
         ws = writer.sheets['Scenari']
-        # Auto-width
         for col_cells in ws.columns:
             max_len = max((len(str(c.value or '')) for c in col_cells), default=10)
-            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 50)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 60)
     buf.seek(0)
     return buf.getvalue()
 
@@ -409,17 +394,11 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
         # Conta scenari UNICI con almeno uno shock pos/neg (non righe shock)
         n_pos    = int(sub[sub['_shock_num'] > 0]['Scenario'].nunique())
         n_neg    = int(sub[sub['_shock_num'] < 0]['Scenario'].nunique())
-        mean_v   = mean_shock_for_group(sub)
         is_sel   = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
         btn_label = f"{'✓ ' if is_sel else ''}{item}"
 
         with cols[i % ncols]:
             clicked = st.button(btn_label, key=f"btn_{on_select_key}_{item}", use_container_width=True)
-            # Stress direction label from mean shock
-            st.markdown(
-                f'<div class="card-sub">{stress_label_html(mean_v)}</div>',
-                unsafe_allow_html=True
-            )
 
             if show_mini:
                 mc1, mc2 = st.columns(2)
