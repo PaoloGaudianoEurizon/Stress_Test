@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.colors import qualitative
-from io import BytesIO
+import numpy as np
+import re
 
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
-st.set_page_config(layout="wide", page_title="Portfolio Analytics", page_icon="📈")
+st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
 
 # ─── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -13,10 +12,8 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
 
 html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
-
 .stApp { background: #f5f5f0; color: #1a1a1a; }
 
-/* ── Buttons ── */
 .stButton > button {
     background: #ffffff; color: #1a1a1a;
     border: 1.5px solid #d4d0c8; border-radius: 8px;
@@ -25,675 +22,492 @@ html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
 }
 .stButton > button:hover { border-color: #1a1a1a; background: #1a1a1a; color: #ffffff; }
 
-/* ── Sidebar ── */
-section[data-testid="stSidebar"] {
-    background: #ffffff;
-    border-right: 1.5px solid #e8e4dc;
+.main-title {
+    font-size: 2.4rem; font-weight: 800; letter-spacing: -1px; color: #1a1a1a;
+    border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4rem; margin-bottom: 0.3rem;
 }
-section[data-testid="stSidebar"] * { font-family: 'Syne', sans-serif; }
-section[data-testid="stSidebar"] .stSelectbox label,
-section[data-testid="stSidebar"] .stMultiSelect label,
-section[data-testid="stSidebar"] .stDateInput label,
-section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.7rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #888880 !important;
-    font-weight: 500 !important;
+.subtitle {
+    font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #888880;
+    margin-bottom: 2rem; letter-spacing: 0.08em; text-transform: uppercase;
 }
-section[data-testid="stSidebar"] .stSelectbox > div > div,
-section[data-testid="stSidebar"] .stMultiSelect > div > div {
-    background: #f5f5f0;
-    border: 1.5px solid #d4d0c8;
-    border-radius: 8px;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.8rem;
-}
-
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    background: transparent;
-    border-bottom: 2px solid #d4d0c8;
-    gap: 0;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent;
-    border: none;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #888880;
-    padding: 8px 20px;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -2px;
-}
-.stTabs [aria-selected="true"] {
-    color: #1a1a1a !important;
-    border-bottom: 3px solid #1a1a1a !important;
-    font-weight: 700;
-}
-.stTabs [data-baseweb="tab"]:hover { color: #1a1a1a; }
-
-/* ── Titles ── */
-.page-title {
-    font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; color: #1a1a1a;
-    border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4rem; margin-bottom: 0.25rem;
-}
-.page-subtitle {
+.breadcrumb {
     font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #888880;
-    margin-bottom: 1.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 1.5rem; letter-spacing: 0.06em;
+}
+.breadcrumb span { color: #1a1a1a; font-weight: 600; }
+.breadcrumb .sep { color: #c8c4bc; margin: 0 6px; }
+
+.card-sub {
+    font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #888880;
+    margin-top: -10px; margin-bottom: 10px; min-height: 18px;
+}
+.sel-pill {
+    display: inline-block; background: #1a1a1a; color: #f5f5f0;
+    border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 0.62rem;
+    padding: 1px 8px; margin: 2px; letter-spacing: 0.04em;
 }
 .section-header {
     font-size: 0.68rem; font-family: 'DM Mono', monospace; text-transform: uppercase;
-    letter-spacing: 0.14em; color: #888880; margin: 2rem 0 1rem;
+    letter-spacing: 0.14em; color: #888880; margin: 1.8rem 0 0.9rem;
     display: flex; align-items: center; gap: 10px;
 }
 .section-header::after { content: ''; flex: 1; height: 1px; background: #d4d0c8; }
 
-/* ── Stat boxes ── */
+.hint-box {
+    background: #fff8e8; border: 1.5px solid #f0d080; border-radius: 8px;
+    padding: 0.6rem 1rem; font-family: 'DM Mono', monospace; font-size: 0.72rem;
+    color: #7a5a00; margin-bottom: 1.2rem;
+}
+
+/* Stat boxes — clickable */
 .stat-row { display: flex; gap: 14px; margin-bottom: 1.5rem; flex-wrap: wrap; }
 .stat-box {
     background: #ffffff; border: 1.5px solid #d4d0c8; border-radius: 10px;
-    padding: 0.8rem 1.3rem; min-width: 140px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    padding: 0.75rem 1.2rem; min-width: 130px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: default;
 }
-.stat-box .sv { font-size: 1.5rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
-.stat-box .sk {
-    font-family: 'DM Mono', monospace; font-size: 0.62rem; color: #888880;
-    text-transform: uppercase; letter-spacing: 0.07em; margin-top: 4px;
+.stat-box.clickable { cursor: pointer; transition: all 0.15s; }
+.stat-box.clickable:hover { border-color: #1a1a1a; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.stat-box.active-filter { border-color: #1a1a1a !important; background: #1a1a1a !important; }
+.stat-box.active-filter .sv, .stat-box.active-filter .sk { color: #ffffff !important; }
+.stat-box .sv { font-size: 1.6rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
+.stat-box .sk { font-family: 'DM Mono', monospace; font-size: 0.63rem; color: #888880; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 4px; }
+
+/* Scenario table */
+.scenario-table {
+    width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace;
+    font-size: 0.78rem; background: #ffffff; border-radius: 10px;
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
 }
-
-/* ── Info / warning boxes ── */
-.info-box {
-    background: #fff8e8; border: 1.5px solid #f0d080; border-radius: 8px;
-    padding: 0.7rem 1.1rem; font-family: 'DM Mono', monospace; font-size: 0.74rem;
-    color: #7a5a00; margin: 1rem 0;
+.scenario-table th {
+    background: #1a1a1a; color: #f5f5f0; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 11px 16px; text-align: left;
+    font-weight: 500; font-size: 0.7rem;
 }
-
-/* ── Download button ── */
-.stDownloadButton > button {
-    background: #f5f5f0; color: #1a1a1a;
-    border: 1.5px solid #d4d0c8; border-radius: 8px;
-    font-family: 'DM Mono', monospace; font-weight: 500; font-size: 0.72rem;
-    letter-spacing: 0.04em;
-    transition: all 0.15s ease;
+.scenario-table td {
+    padding: 10px 16px; border-bottom: 1px solid #f0ede6;
+    color: #2a2a2a; vertical-align: top;
 }
-.stDownloadButton > button:hover { background: #1a1a1a; color: #ffffff; border-color: #1a1a1a; }
+.scenario-table tr:last-child td { border-bottom: none; }
+.scenario-table tr:hover td { background: #fafaf7; }
+.shock-pos { color: #0a7c45; font-weight: 600; }
+.shock-neg { color: #c0392b; font-weight: 600; }
+.shock-zero { color: #888880; }
+.long-des { font-size: 0.71rem; color: #666660; margin-top: 4px; line-height: 1.45; font-family: 'Syne', sans-serif; font-weight: 400; }
 
-/* ── Dataframe ── */
-.stDataFrame { border: 1.5px solid #d4d0c8; border-radius: 10px; overflow: hidden; }
-[data-testid="stDataFrameResizable"] { font-family: 'DM Mono', monospace; font-size: 0.78rem; }
+/* Multi-area: shock list per scenario */
+.shock-list { display: flex; flex-direction: column; gap: 3px; }
+.shock-row-item { display: flex; gap: 6px; align-items: baseline; }
+.shock-path { font-size: 0.62rem; color: #aaa; }
 
-/* ── Selectbox inside main area ── */
-.stSelectbox > div > div {
-    background: #ffffff; border: 1.5px solid #d4d0c8;
-    border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 0.82rem;
+.filter-note {
+    font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #888880;
+    margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px;
 }
-
-/* ── Plotly chart container ── */
-.stPlotlyChart {
-    background: #ffffff; border: 1.5px solid #e8e4dc;
-    border-radius: 12px; overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    padding: 8px;
-    margin-bottom: 1rem;
-}
-
-/* ── Divider ── */
-hr { border: none; border-top: 1.5px solid #d4d0c8; margin: 2rem 0; }
-
-/* ── Sidebar title ── */
-.sidebar-logo {
-    font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800;
-    color: #1a1a1a; letter-spacing: -0.3px; margin-bottom: 1.5rem;
-    padding-bottom: 0.8rem; border-bottom: 2px solid #1a1a1a;
-}
-
-h2 { font-family: 'Syne', sans-serif !important; font-weight: 700 !important; font-size: 1.1rem !important; color: #1a1a1a !important; }
-h1 { font-family: 'Syne', sans-serif !important; font-weight: 800 !important; }
+.filter-dot-pos { width:8px; height:8px; border-radius:50%; background:#0a7c45; display:inline-block; }
+.filter-dot-neg { width:8px; height:8px; border-radius:50%; background:#c0392b; display:inline-block; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── PLOTLY THEME ──────────────────────────────────────────────────────────────
-PLOT_LAYOUT = dict(
-    template="plotly_white",
-    font=dict(family="DM Mono, monospace", size=11, color="#1a1a1a"),
-    paper_bgcolor="#ffffff",
-    plot_bgcolor="#ffffff",
-    xaxis=dict(showgrid=True, gridcolor="#f0ede6", linecolor="#d4d0c8", tickfont=dict(size=10)),
-    yaxis=dict(showgrid=True, gridcolor="#f0ede6", linecolor="#d4d0c8", tickfont=dict(size=10)),
-    legend=dict(
-        bgcolor="#ffffff", bordercolor="#d4d0c8", borderwidth=1,
-        font=dict(family="DM Mono, monospace", size=10)
-    ),
-    margin=dict(l=50, r=30, t=40, b=50),
-    hoverlabel=dict(
-        bgcolor="#1a1a1a", font_color="#f5f5f0",
-        font_family="DM Mono, monospace", font_size=11, bordercolor="#1a1a1a"
-    )
-)
+# ─── HELPERS ───────────────────────────────────────────────────────────────────
 
-# ─── TABS ──────────────────────────────────────────────────────────────────────
-tab_corr, tab_stress, tab_exposure, tab_legenda = st.tabs(
-    ["Correlation", "Stress Test", "Exposure", "Legend"]
-)
+def parse_shock_value(val):
+    if pd.isna(val): return np.nan
+    s = str(val).replace(',', '.').strip()
+    m = re.search(r'[-+]?\d+\.?\d*', s)
+    return float(m.group()) if m else np.nan
 
-# ─── SIDEBAR ───────────────────────────────────────────────────────────────────
-st.sidebar.markdown('<div class="sidebar-logo">Portfolio Analytics</div>', unsafe_allow_html=True)
+def shock_direction(mean_val):
+    if pd.isna(mean_val): return "mix"
+    if mean_val > 0: return "pos"
+    if mean_val < 0: return "neg"
+    return "mix"
 
-chart_type = st.sidebar.selectbox(
-    "Select chart",
-    ["EGQ vs Index and Cash", "E7X vs Funds"]
-)
+def mean_shock_for_group(df_sub):
+    vals = df_sub['_shock_num'].dropna()
+    return vals.mean() if len(vals) else np.nan
 
-# ─── DATA LOADERS ──────────────────────────────────────────────────────────────
-@st.cache_data
-def load_corr_data(path):
-    df = pd.read_excel(path, sheet_name="Correlation Clean")
-    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
-    df = df.set_index(df.columns[0]).sort_index()
-    return df
+def direction_label(d):
+    return {"pos": ("▲ Positivo", "#0a7c45"),
+            "neg": ("▼ Negativo", "#c0392b"),
+            "mix": ("~ Misto",    "#b7770d")}[d]
+
+def clean_items(series):
+    return sorted([str(i) for i in series.dropna().unique()
+                   if str(i).strip() not in ('', 'nan')])
+
+# ─── DATA ──────────────────────────────────────────────────────────────────────
+FILE_PATH = "ListaxMapping.xlsx"
 
 @st.cache_data
-def load_stress_data(path):
-    xls = pd.ExcelFile(path)
-    records = []
-    for sheet_name in xls.sheet_names:
-        if "&&" in sheet_name:
-            portfolio, scenario_name = sheet_name.split("&&", 1)
-        else:
-            portfolio, scenario_name = sheet_name, sheet_name
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-        df = df.rename(columns={
-            df.columns[0]: "Date",
-            df.columns[2]: "Scenario",
-            df.columns[4]: "StressPnL"
-        })
-        df["Date"] = pd.to_datetime(df["Date"])
-        df["Portfolio"] = portfolio
-        df["ScenarioName"] = scenario_name
-        records.append(df[["Date", "Scenario", "StressPnL", "Portfolio", "ScenarioName"]])
-    return pd.concat(records, ignore_index=True)
+def load_data():
+    df = pd.read_excel(FILE_PATH, sheet_name="Pivot", header=0)
+    df.columns = ['Scenario', 'L1', 'L2', 'L3', 'ShockValue'] + list(df.columns[5:])
+    df = df[['Scenario', 'L1', 'L2', 'L3', 'ShockValue']].copy()
+    for col in ['Scenario', 'L1', 'L2', 'L3']:
+        df[col] = df[col].ffill()
+    df = df.dropna(subset=['L1'])
+    df = df[df['L1'].astype(str).str.strip().astype(bool)]
+    df = df[df['L1'].astype(str).str.lower() != 'nan']
+    df['_shock_num'] = df['ShockValue'].apply(parse_shock_value)
 
-@st.cache_data
-def load_exposure_data(path):
-    df = pd.read_excel(path, sheet_name="MeasuresSeries")
-    df = df.rename(columns={
-        df.columns[0]: "Date",
-        df.columns[3]: "Portfolio",
-        df.columns[4]: "Equity Exposure",
-        df.columns[5]: "Duration",
-        df.columns[6]: "Spread Duration"
-    })
-    df["Date"] = pd.to_datetime(df["Date"])
-    df.columns = df.columns.str.strip()
-    return df
+    try:
+        dm = pd.read_excel(FILE_PATH, sheet_name="MAIN", header=0)
+        dm = dm.iloc[:, [0, 3]].copy()
+        dm.columns = ['Stress_Scenarios', 'Long_des']
+        dm = dm.dropna(subset=['Stress_Scenarios'])
+        dm['Stress_Scenarios'] = dm['Stress_Scenarios'].astype(str).str.strip()
+        dm['Long_des'] = dm['Long_des'].fillna('').astype(str).str.strip()
+    except Exception:
+        dm = pd.DataFrame(columns=['Stress_Scenarios', 'Long_des'])
 
-@st.cache_data
-def load_legenda_sheet(sheet_name, usecols):
-    return pd.read_excel("Legenda.xlsx", sheet_name=sheet_name, usecols=usecols)
+    return df, dm
 
-corrEGQ = load_corr_data("corrEGQ.xlsx")
-corrE7X = load_corr_data("corrE7X.xlsx")
+try:
+    df, dm = load_data()
+except FileNotFoundError:
+    st.error(f"File `{FILE_PATH}` non trovato nella repository.")
+    st.stop()
 
-stress_path  = "stress_test_totEGQ.xlsx" if chart_type == "EGQ vs Index and Cash" else "stress_test_totE7X.xlsx"
-stress_data  = load_stress_data(stress_path)
-stress_title = "EGQ Flexible Multistrategy" if chart_type == "EGQ vs Index and Cash" else "E7X Dynamic Asset Allocation"
+desc_map = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
 
-exposure_data = load_exposure_data("E7X_Exposure.xlsx")
+# ─── SESSION STATE ─────────────────────────────────────────────────────────────
+defaults = {
+    'sel_l1_set': set(), 'sel_l1_single': None,
+    'sel_l2': None, 'sel_l3': None,
+    'mode': 'drill',
+    'shock_filter': 'all',   # 'all' | 'pos' | 'neg'
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-palette = qualitative.Plotly
+# ─── HEADER ────────────────────────────────────────────────────────────────────
+st.markdown('<div class="main-title">Stress Test Mapping</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Asset class drill-down · Shock direction analysis</div>', unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — CORRELATION
-# ══════════════════════════════════════════════════════════════════════════════
-with tab_corr:
-    df = (corrEGQ if chart_type == "EGQ vs Index and Cash" else corrE7X).copy()
-    chart_title = ("EGQ Flexible Multistrategy vs Index and Cash"
-                   if chart_type == "EGQ vs Index and Cash"
-                   else "E7X Dynamic Asset Allocation vs Funds")
-    reference_asset = "EGQ" if chart_type == "EGQ vs Index and Cash" else "E7X"
+col_m1, col_m2, col_m3 = st.columns([2, 2, 8])
+with col_m1:
+    if st.button("🔍 Drill-down", use_container_width=True):
+        st.session_state.mode = 'drill'
+        st.session_state.sel_l1_set = set()
+        st.session_state.sel_l2 = None
+        st.session_state.sel_l3 = None
+        st.session_state.shock_filter = 'all'
+        st.rerun()
+with col_m2:
+    if st.button("🔀 Multi-area", use_container_width=True):
+        st.session_state.mode = 'multi'
+        st.session_state.sel_l2 = None
+        st.session_state.sel_l3 = None
+        st.session_state.shock_filter = 'all'
+        st.rerun()
+st.markdown("---")
 
-    st.markdown(f'<div class="page-title">{chart_title}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Rolling Correlation Analysis</div>', unsafe_allow_html=True)
+# ─── CARD RENDERER ─────────────────────────────────────────────────────────────
+def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
+    if not items: return
+    ncols = min(len(items), 4)
+    cols = st.columns(ncols)
+    for i, item in enumerate(items):
+        sub = df_filtered[df_filtered[col_name] == item]
+        mean_v = mean_shock_for_group(sub)
+        n_sc = sub['Scenario'].nunique()
+        d = shock_direction(mean_v)
+        lbl, col_hex = direction_label(d)
+        is_sel = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
+        btn_label = f"{'✓ ' if is_sel else ''}{item}"
 
-    # Date range
-    st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Date Range — Correlation</div>', unsafe_allow_html=True)
-    start_date, end_date = st.sidebar.date_input(
-        "Select start and end date",
-        value=(df.index.min().date(), df.index.max().date()),
-        min_value=df.index.min().date(),
-        max_value=df.index.max().date()
-    )
-    df = df.loc[pd.to_datetime(start_date):pd.to_datetime(end_date)]
+        with cols[i % ncols]:
+            clicked = st.button(btn_label, key=f"btn_{on_select_key}_{item}", use_container_width=True)
+            st.markdown(
+                f'<div class="card-sub"><span style="color:{col_hex};font-weight:600;">{lbl}</span>'
+                f'&nbsp;·&nbsp;{n_sc} scenari</div>',
+                unsafe_allow_html=True
+            )
+            if clicked:
+                if multi:
+                    if item in st.session_state.sel_l1_set:
+                        st.session_state.sel_l1_set.discard(item)
+                    else:
+                        st.session_state.sel_l1_set.add(item)
+                    st.session_state.shock_filter = 'all'
+                else:
+                    cur = st.session_state.get(on_select_key)
+                    st.session_state[on_select_key] = None if cur == item else item
+                    if on_select_key == 'sel_l1_single':
+                        st.session_state.sel_l2 = None
+                        st.session_state.sel_l3 = None
+                    elif on_select_key == 'sel_l2':
+                        st.session_state.sel_l3 = None
+                    st.session_state.shock_filter = 'all'
+                st.rerun()
 
-    # Series selector
-    st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Series — Correlation</div>', unsafe_allow_html=True)
-    selected_series = st.sidebar.multiselect(
-        "Select series",
-        options=df.columns.tolist(),
-        default=df.columns.tolist()
-    )
-    if not selected_series:
-        st.warning("Please select at least one series.")
-        st.stop()
+# ─── STAT BOXES WITH FILTER ────────────────────────────────────────────────────
+def render_stat_boxes(df_sub):
+    """Render stat boxes; clicking Positivi/Negativi filters the table below."""
+    mean_v = mean_shock_for_group(df_sub)
+    n_sc   = df_sub['Scenario'].nunique()
+    n_pos  = int((df_sub['_shock_num'] > 0).sum())
+    n_neg  = int((df_sub['_shock_num'] < 0).sum())
+    d      = shock_direction(mean_v)
+    lbl, col_hex = direction_label(d)
 
-    color_map = {s: palette[i % len(palette)] for i, s in enumerate(selected_series)}
+    cur_filter = st.session_state.shock_filter
 
-    # Stat boxes
-    mean_vals = df[selected_series].mean() * 100
-    st.markdown(f"""
-    <div class="stat-row">
+    # Render using streamlit columns with custom styling
+    c0, c1, c2, c3, c4 = st.columns([1.4, 1.8, 1.4, 1.4, 6])
+
+    with c0:
+        st.markdown(f"""
         <div class="stat-box">
-            <div class="sv">{len(selected_series)}</div>
-            <div class="sk">Series selected</div>
-        </div>
+            <div class="sv">{n_sc}</div>
+            <div class="sk">Scenari totali</div>
+        </div>""", unsafe_allow_html=True)
+
+    with c1:
+        st.markdown(f"""
         <div class="stat-box">
-            <div class="sv">{start_date.strftime('%d/%m/%y')} → {end_date.strftime('%d/%m/%y')}</div>
-            <div class="sk">Period</div>
-        </div>
-        <div class="stat-box">
-            <div class="sv">{mean_vals.mean():.1f}%</div>
-            <div class="sk">Avg correlation</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+            <div class="sv" style="color:{col_hex};font-size:1.05rem;">{lbl}</div>
+            <div class="sk">Direzione prevalente</div>
+        </div>""", unsafe_allow_html=True)
 
-    # Time series
-    st.markdown('<div class="section-header">Correlation Time Series</div>', unsafe_allow_html=True)
-    fig_ts = go.Figure()
-    for col in selected_series:
-        fig_ts.add_trace(go.Scatter(
-            x=df.index, y=df[col] * 100, mode="lines", name=col,
-            line=dict(color=color_map[col], width=1.8),
-            hovertemplate="%{y:.2f}%<extra></extra>"
-        ))
-    fig_ts.update_layout(
-        **PLOT_LAYOUT, height=500, hovermode="x unified",
-        yaxis=dict(**PLOT_LAYOUT["yaxis"], ticksuffix="%"),
-        xaxis_title="Date", yaxis_title="Correlation (%)"
-    )
-    st.plotly_chart(fig_ts, use_container_width=True)
+    with c2:
+        active_pos = cur_filter == 'pos'
+        if st.button(
+            f"▲ {n_pos}  positivi",
+            key="filter_pos",
+            use_container_width=True,
+            help="Filtra solo scenari con shock positivo"
+        ):
+            st.session_state.shock_filter = 'all' if active_pos else 'pos'
+            st.rerun()
+        if active_pos:
+            st.markdown('<div style="height:3px;background:#0a7c45;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
-    df_download = df[selected_series] * 100
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_download.to_excel(writer, sheet_name="Time Series Data")
-    st.download_button(
-        "📥 Download time series data as Excel", data=output.getvalue(),
-        file_name="time_series_data.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_time_series"
-    )
+    with c3:
+        active_neg = cur_filter == 'neg'
+        if st.button(
+            f"▼ {n_neg}  negativi",
+            key="filter_neg",
+            use_container_width=True,
+            help="Filtra solo scenari con shock negativo"
+        ):
+            st.session_state.shock_filter = 'all' if active_neg else 'neg'
+            st.rerun()
+        if active_neg:
+            st.markdown('<div style="height:3px;background:#c0392b;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
-    # Radar
-    st.markdown('<div class="section-header">Correlation Radar</div>', unsafe_allow_html=True)
-    snapshot_date = df.index.max()
-    snapshot  = df.loc[snapshot_date, selected_series]
-    mean_corr = df[selected_series].mean()
+    return n_pos, n_neg
 
-    fig_radar = go.Figure()
-    fig_radar.add_trace(go.Scatterpolar(
-        r=snapshot.values * 100, theta=snapshot.index,
-        name=f"End date ({snapshot_date.date()})", line=dict(width=2.5, color="#1a1a1a")
-    ))
-    fig_radar.add_trace(go.Scatterpolar(
-        r=mean_corr.values * 100, theta=mean_corr.index,
-        name="Period mean", line=dict(dash="dot", width=1.8, color="#888880")
-    ))
-    fig_radar.update_layout(
-        **{k: v for k, v in PLOT_LAYOUT.items() if k not in ('xaxis', 'yaxis')},
-        polar=dict(radialaxis=dict(visible=True, range=[-100, 100], ticksuffix="%",
-                                   gridcolor="#d4d0c8", linecolor="#d4d0c8")),
-        height=580
-    )
-    st.plotly_chart(fig_radar, use_container_width=True)
+# ─── SCENARIO TABLE ────────────────────────────────────────────────────────────
+def render_scenario_table(df_sub, multi_mode=False):
+    """
+    Drill mode: one row per (Scenario, L3 path), single shock value.
+    Multi mode: one row per Scenario, list all shock values for selected L1 areas.
+    """
+    n_pos, n_neg = render_stat_boxes(df_sub)
 
-    # Summary stats
-    st.markdown('<div class="section-header">Summary Statistics</div>', unsafe_allow_html=True)
-    sheet_main   = "EGQ" if chart_type == "EGQ vs Index and Cash" else "E7X"
-    legenda_main = load_legenda_sheet(sheet_name=sheet_main, usecols="A:C")
-    ticker_to_name = dict(zip(legenda_main["Ticker"], legenda_main["Name"]))
-
-    stats_df = pd.DataFrame(index=selected_series)
-    stats_df.insert(0, "Name", [ticker_to_name.get(t, "") for t in selected_series])
-    stats_df["Mean (%)"] = df[selected_series].mean() * 100
-    stats_df["Min (%)"]  = df[selected_series].min()  * 100
-    stats_df["Min Date"] = [df[col][df[col] == df[col].min()].index.max() for col in selected_series]
-    stats_df["Max (%)"]  = df[selected_series].max()  * 100
-    stats_df["Max Date"] = [df[col][df[col] == df[col].max()].index.max() for col in selected_series]
-    stats_df["Min Date"] = pd.to_datetime(stats_df["Min Date"]).dt.strftime("%d/%m/%Y")
-    stats_df["Max Date"] = pd.to_datetime(stats_df["Max Date"]).dt.strftime("%d/%m/%Y")
-
-    st.dataframe(
-        stats_df.style.format({"Mean (%)": "{:.2f}%", "Min (%)": "{:.2f}%", "Max (%)": "{:.2f}%"}),
-        use_container_width=True
-    )
-
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        stats_df.to_excel(writer, sheet_name="Summary Stats")
-    st.download_button(
-        "📥 Download summary statistics as Excel", data=output.getvalue(),
-        file_name="summary_statistics.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_summary_stats"
-    )
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — STRESS TEST
-# ══════════════════════════════════════════════════════════════════════════════
-with tab_stress:
-    st.markdown(f'<div class="page-title">{stress_title}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Stress Test PnL Analysis</div>', unsafe_allow_html=True)
-
-    # Date selector
-    st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Date — Stress Test</div>', unsafe_allow_html=True)
-    all_dates    = stress_data["Date"].dropna().sort_values().unique()
-    date_options = [d.strftime("%Y/%m/%d") for d in all_dates]
-    selected_date_str = st.sidebar.selectbox("Select date", date_options, key="stress_date")
-    selected_date = pd.to_datetime(selected_date_str, format="%Y/%m/%d")
-    df_filtered   = stress_data[stress_data["Date"] == selected_date]
-
-    if df_filtered.empty:
-        st.warning("No data available for the selected date.")
-        st.stop()
-
-    # Portfolio selector
-    st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Series — Stress Test</div>', unsafe_allow_html=True)
-    available_portfolios = df_filtered["Portfolio"].dropna().sort_values().unique().tolist()
-    selected_portfolios  = st.sidebar.multiselect("Select series", options=available_portfolios, default=available_portfolios)
-    if not selected_portfolios:
-        st.warning("Please select at least one portfolio.")
-        st.stop()
-    df_filtered = df_filtered[df_filtered["Portfolio"].isin(selected_portfolios)]
-
-    # Scenario selector
-    st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Scenarios — Stress Test</div>', unsafe_allow_html=True)
-    available_scenarios = df_filtered["ScenarioName"].dropna().sort_values().unique().tolist()
-    selected_scenarios  = st.sidebar.multiselect("Select stress scenarios", options=available_scenarios, default=available_scenarios)
-    if not selected_scenarios:
-        st.warning("Please select at least one stress scenario.")
-        st.stop()
-    df_filtered = df_filtered[df_filtered["ScenarioName"].isin(selected_scenarios)]
-
-    df_filtered["ScenarioName"] = pd.Categorical(df_filtered["ScenarioName"], categories=selected_scenarios, ordered=True)
-    df_filtered["Portfolio"]    = pd.Categorical(df_filtered["Portfolio"],    categories=selected_portfolios, ordered=True)
-
-    # Stat boxes
-    n_pos_stress = int((df_filtered["StressPnL"] > 0).sum())
-    n_neg_stress = int((df_filtered["StressPnL"] < 0).sum())
-    st.markdown(f"""
-    <div class="stat-row">
-        <div class="stat-box"><div class="sv">{len(selected_scenarios)}</div><div class="sk">Scenarios</div></div>
-        <div class="stat-box"><div class="sv">{len(selected_portfolios)}</div><div class="sk">Portfolios</div></div>
-        <div class="stat-box"><div class="sv" style="color:#0a7c45">▲ {n_pos_stress}</div><div class="sk">Positive PnL</div></div>
-        <div class="stat-box"><div class="sv" style="color:#c0392b">▼ {n_neg_stress}</div><div class="sk">Negative PnL</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Grouped bar
-    st.markdown('<div class="section-header">Stress Test PnL</div>', unsafe_allow_html=True)
-    fig_bar = go.Figure()
-    for i, portfolio in enumerate(selected_portfolios):
-        df_port = df_filtered[df_filtered["Portfolio"] == portfolio]
-        if df_port.empty:
-            continue
-        fig_bar.add_trace(go.Bar(
-            x=df_port["ScenarioName"], y=df_port["StressPnL"],
-            name=portfolio, marker_color=palette[i % len(palette)],
-            text=df_port["StressPnL"], textposition="auto",
-            marker_line_width=0
-        ))
-    fig_bar.update_layout(
-        **PLOT_LAYOUT, barmode="group", height=520,
-        xaxis_title="Scenario", yaxis_title="Stress PnL (bps)"
-    )
-    fig_bar.add_hline(y=0, line_color="#1a1a1a", line_width=1, line_dash="dot")
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    df_dl = df_filtered[df_filtered["Portfolio"].isin(selected_portfolios)][["Portfolio", "ScenarioName", "StressPnL"]]
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_dl.to_excel(writer, sheet_name="Stress Test PnL", index=False)
-    st.download_button(
-        "📥 Download Stress PnL data as Excel", data=output.getvalue(),
-        file_name="stress_test_pnl.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_stress_pnl"
-    )
-
-    # Comparison Analysis
-    st.markdown("---")
-    st.markdown('<div class="section-header">Comparison Analysis — Portfolio vs Bucket</div>', unsafe_allow_html=True)
-
-    default_portfolio = "EGQ" if chart_type == "EGQ vs Index and Cash" else "E7X"
-    default_index = selected_portfolios.index(default_portfolio) if default_portfolio in selected_portfolios else 0
-    selected_portfolio = st.selectbox("Analysis portfolio", selected_portfolios, index=default_index, key="stress_analysis_port")
-
-    df_analysis = df_filtered[df_filtered["Portfolio"] == selected_portfolio][["ScenarioName", "StressPnL"]]
-    df_bucket   = df_filtered[df_filtered["Portfolio"] != selected_portfolio][["ScenarioName", "StressPnL"]]
-
-    if df_bucket.empty:
-        st.markdown('<div class="info-box">⚠️ Not enough portfolios selected for bucket comparison.</div>', unsafe_allow_html=True)
+    # Apply filter
+    f = st.session_state.shock_filter
+    if f == 'pos':
+        df_filtered = df_sub[df_sub['_shock_num'] > 0]
+        if df_filtered.empty:
+            st.info("Nessuno scenario con shock positivo.")
+            return
+    elif f == 'neg':
+        df_filtered = df_sub[df_sub['_shock_num'] < 0]
+        if df_filtered.empty:
+            st.info("Nessuno scenario con shock negativo.")
+            return
     else:
-        df_bucket_stats = (
-            df_bucket.groupby("ScenarioName", as_index=False)
-            .agg(bucket_median=("StressPnL", "median"),
-                 q25=("StressPnL", lambda x: x.quantile(0.25)),
-                 q75=("StressPnL", lambda x: x.quantile(0.75)))
-        )
-        df_plot = df_analysis.merge(df_bucket_stats, on="ScenarioName", how="inner")
+        df_filtered = df_sub
 
-        fig = go.Figure()
-        for _, r in df_plot.iterrows():
-            fig.add_trace(go.Scatter(
-                x=[r["q25"], r["q75"]], y=[r["ScenarioName"], r["ScenarioName"]],
-                mode="lines", line=dict(width=14, color="rgba(255,0,0,0.25)"),
-                showlegend=False, hoverinfo="skip"
-            ))
-        fig.add_trace(go.Scatter(
-            x=df_plot["bucket_median"], y=df_plot["ScenarioName"],
-            mode="markers", marker=dict(size=9, color="red"),
-            name="Bucket median"
-        ))
-        fig.add_trace(go.Scatter(
-            x=df_plot["StressPnL"], y=df_plot["ScenarioName"],
-            mode="markers", marker=dict(size=14, symbol="star", color="orange"),
-            name=selected_portfolio
-        ))
-        fig.update_layout(**PLOT_LAYOUT, height=600, hovermode="y",
-                          xaxis_title="Stress PnL (bps)", yaxis_title="Scenario")
-        st.plotly_chart(fig, use_container_width=True)
+    if not multi_mode:
+        # ── DRILL MODE: simple table, one row per data row
+        rows_html = ""
+        for _, row in df_filtered.sort_values('Scenario').iterrows():
+            shock_num = row['_shock_num']
+            shock_raw = str(row['ShockValue']) if not pd.isna(row['ShockValue']) else "—"
+            long_des  = desc_map.get(str(row['Scenario']).strip(), '')
+
+            try:   is_num = not np.isnan(float(shock_num))
+            except: is_num = False
+
+            cls   = ("shock-pos" if shock_num > 0 else "shock-neg") if is_num and shock_num != 0 else "shock-zero"
+            arrow = ("▲ " if shock_num > 0 else "▼ ") if is_num and shock_num != 0 else ""
+            des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
+
+            rows_html += f"""
+            <tr>
+                <td><strong>{row['Scenario']}</strong>{des_html}</td>
+                <td class='{cls}'>{arrow}{shock_raw}</td>
+            </tr>"""
+
+        st.markdown(f"""
+        <table class="scenario-table">
+            <thead><tr><th>Scenario</th><th>Shock Value</th></tr></thead>
+            <tbody>{rows_html}</tbody>
+        </table>""", unsafe_allow_html=True)
+
+    else:
+        # ── MULTI MODE: group by Scenario, show all shock values per selected areas
+        # Each scenario can have multiple rows (one per L1/L2/L3 path)
+        rows_html = ""
+        scenarios = sorted(df_filtered['Scenario'].unique())
+
+        for scenario in scenarios:
+            sc_rows = df_filtered[df_filtered['Scenario'] == scenario]
+            long_des = desc_map.get(str(scenario).strip(), '')
+            des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
+
+            # Build list of shock entries
+            shock_items = ""
+            for _, r in sc_rows.iterrows():
+                shock_num = r['_shock_num']
+                shock_raw = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
+                try:   is_num = not np.isnan(float(shock_num))
+                except: is_num = False
+                cls   = ("shock-pos" if shock_num > 0 else "shock-neg") if is_num and shock_num != 0 else "shock-zero"
+                arrow = ("▲ " if shock_num > 0 else "▼ ") if is_num and shock_num != 0 else ""
+                path  = " › ".join([str(r[c]) for c in ['L1','L2','L3'] if str(r.get(c,'')).strip() not in ('','nan')])
+                shock_items += f'<div class="shock-row-item"><span class="{cls}">{arrow}{shock_raw}</span><span class="shock-path">{path}</span></div>'
+
+            rows_html += f"""
+            <tr>
+                <td><strong>{scenario}</strong>{des_html}</td>
+                <td><div class="shock-list">{shock_items}</div></td>
+            </tr>"""
+
+        st.markdown(f"""
+        <table class="scenario-table">
+            <thead><tr><th>Scenario</th><th>Shock per area selezionata</th></tr></thead>
+            <tbody>{rows_html}</tbody>
+        </table>""", unsafe_allow_html=True)
 
         st.markdown(
-            """
-            <div style="display: flex; align-items: center; font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #888880;">
-                <span style="margin-right: 4px;">Note: the shaded areas</span>
-                <div style="width: 20px; height: 14px; background-color: rgba(255,0,0,0.25); margin: 0 4px; border: 1px solid rgba(0,0,0,0.1);"></div>
-                <span>represent the dispersion between the 25th and 75th percentile of the Bucket.</span>
-            </div>
-            """,
+            '<div style="font-family:DM Mono,monospace;font-size:0.65rem;color:#aaa;margin-top:8px;">'
+            '⚠️ I valori mostrati sono quelli raw dall\'Excel per ciascuna combinazione L1 › L2 › L3, non medie. '
+            'La direzione ▲/▼ sulle card è calcolata come media degli shock numerici del gruppo.</div>',
             unsafe_allow_html=True
         )
 
-        df_dl2 = df_plot.rename(columns={"bucket_median": "Bucket Portfolio Median",
-                                          "q25": "25% Quantile", "q75": "75% Quantile",
-                                          "StressPnL": selected_portfolio})
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df_dl2.to_excel(writer, sheet_name="Portfolio vs Bucket", index=False)
-        st.download_button(
-            f"📥 Download {selected_portfolio} vs Bucket data as Excel", data=output.getvalue(),
-            file_name=f"{selected_portfolio}_vs_bucket.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_{selected_portfolio}_vs_bucket"
-        )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODE A — DRILL-DOWN
+# ══════════════════════════════════════════════════════════════════════════════
+if st.session_state.mode == 'drill':
+    parts = ['<span>All</span>']
+    if st.session_state.sel_l1_single:
+        parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l1_single}</span>')
+    if st.session_state.sel_l2:
+        parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l2}</span>')
+    if st.session_state.sel_l3:
+        parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l3}</span>')
+    st.markdown(f'<div class="breadcrumb">{"".join(parts)}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="section-header">Mapping Livello 1 — Asset Class</div>', unsafe_allow_html=True)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False)
+
+    if st.session_state.sel_l1_single:
+        df_l1 = df[df['L1'] == st.session_state.sel_l1_single]
+        l2_items = clean_items(df_l1['L2'])
+        col_b, _ = st.columns([1, 5])
+        with col_b:
+            if st.button("← Reset L1", key="back_l1"):
+                st.session_state.sel_l1_single = None
+                st.session_state.sel_l2 = None
+                st.session_state.sel_l3 = None
+                st.session_state.shock_filter = 'all'
+                st.rerun()
+        if l2_items:
+            st.markdown(f'<div class="section-header">Livello 2 — {st.session_state.sel_l1_single}</div>', unsafe_allow_html=True)
+            render_cards(l2_items, df_l1, 'L2', 'sel_l2', multi=False)
+
+    if st.session_state.sel_l1_single and st.session_state.sel_l2:
+        df_l2 = df[(df['L1'] == st.session_state.sel_l1_single) & (df['L2'] == st.session_state.sel_l2)]
+        l3_items = clean_items(df_l2['L3'])
+        col_b2, _ = st.columns([1, 5])
+        with col_b2:
+            if st.button("← Reset L2", key="back_l2"):
+                st.session_state.sel_l2 = None
+                st.session_state.sel_l3 = None
+                st.session_state.shock_filter = 'all'
+                st.rerun()
+        if l3_items:
+            st.markdown(f'<div class="section-header">Livello 3 — {st.session_state.sel_l2}</div>', unsafe_allow_html=True)
+            render_cards(l3_items, df_l2, 'L3', 'sel_l3', multi=False)
+
+    if st.session_state.sel_l1_single and st.session_state.sel_l2 and st.session_state.sel_l3:
+        df_l3 = df[
+            (df['L1'] == st.session_state.sel_l1_single) &
+            (df['L2'] == st.session_state.sel_l2) &
+            (df['L3'] == st.session_state.sel_l3)
+        ]
+        col_b3, _ = st.columns([1, 5])
+        with col_b3:
+            if st.button("← Reset L3", key="back_l3"):
+                st.session_state.sel_l3 = None
+                st.session_state.shock_filter = 'all'
+                st.rerun()
+        st.markdown(f'<div class="section-header">Scenari — {st.session_state.sel_l3}</div>', unsafe_allow_html=True)
+        render_scenario_table(df_l3, multi_mode=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — EXPOSURE
+# MODE B — MULTI-AREA
 # ══════════════════════════════════════════════════════════════════════════════
-with tab_exposure:
-    if chart_type == "E7X vs Funds":
-        st.markdown('<div class="page-title">E7X Dynamic Asset Allocation vs Funds</div>', unsafe_allow_html=True)
-        st.markdown('<div class="page-subtitle">Portfolio Exposure Analysis</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="page-title">EGQ Flexible Multistrategy vs Index and Cash</div>', unsafe_allow_html=True)
-        st.markdown('<div class="info-box">ℹ️ Analysis not performed for this subset.</div>', unsafe_allow_html=True)
+else:
+    st.markdown(
+        '<div class="hint-box">💡 Seleziona una o più aree di Livello 1. '
+        'Con una sola area vedi tutti i suoi scenari. '
+        'Con più aree vedi gli scenari <strong>comuni a tutte</strong>, con i rispettivi shock per area.</div>',
+        unsafe_allow_html=True
+    )
 
-    if chart_type == "E7X vs Funds":
-        st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Date — Exposure</div>', unsafe_allow_html=True)
-        all_dates_exp  = exposure_data["Date"].dropna().sort_values().unique()
-        date_opts_exp  = [d.strftime("%Y/%m/%d") for d in all_dates_exp]
-        sel_date_exp_s = st.sidebar.selectbox("Select date", date_opts_exp, index=len(date_opts_exp)-1, key="exp_date")
-        sel_date_exp   = pd.to_datetime(sel_date_exp_s, format="%Y/%m/%d")
-        df_exp_filt    = exposure_data[exposure_data["Date"] == sel_date_exp]
+    st.markdown('<div class="section-header">Seleziona Asset Class (multi-selezione)</div>', unsafe_allow_html=True)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_set', multi=True)
 
-        if df_exp_filt.empty:
-            st.warning("No data available for the selected date.")
-            st.stop()
+    if st.session_state.sel_l1_set:
+        pills_html = " ".join([f'<span class="sel-pill">✓ {x}</span>' for x in sorted(st.session_state.sel_l1_set)])
+        st.markdown(f'<div style="margin:8px 0 4px;">{pills_html}</div>', unsafe_allow_html=True)
 
-        st.sidebar.markdown('<div style="font-family:DM Mono,monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:#888880;margin-top:1rem;">Series — Exposure</div>', unsafe_allow_html=True)
-        avail_ports_exp = df_exp_filt["Portfolio"].dropna().sort_values().unique().tolist()
-        sel_ports_exp   = st.sidebar.multiselect("Select portfolios", options=avail_ports_exp, default=avail_ports_exp)
-        if not sel_ports_exp:
-            st.warning("Please select at least one portfolio.")
-            st.stop()
-        df_exp_filt = df_exp_filt[df_exp_filt["Portfolio"].isin(sel_ports_exp)]
+        col_clear, _ = st.columns([1.5, 8])
+        with col_clear:
+            if st.button("✕ Deseleziona tutto", key="clear_multi"):
+                st.session_state.sel_l1_set = set()
+                st.session_state.shock_filter = 'all'
+                st.rerun()
 
-        metrics = ["Equity Exposure", "Duration", "Spread Duration"]
+        selected_list = list(st.session_state.sel_l1_set)
 
-        # Stat boxes
-        eq_mean  = df_exp_filt["Equity Exposure"].mean()
-        dur_mean = df_exp_filt["Duration"].mean()
-        st.markdown(f"""
-        <div class="stat-row">
-            <div class="stat-box"><div class="sv">{len(sel_ports_exp)}</div><div class="sk">Portfolios</div></div>
-            <div class="stat-box"><div class="sv">{eq_mean:.1f}</div><div class="sk">Avg Equity Exp.</div></div>
-            <div class="stat-box"><div class="sv">{dur_mean:.1f}</div><div class="sk">Avg Duration</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Grouped bar
-        st.markdown('<div class="section-header">Exposure by Portfolio</div>', unsafe_allow_html=True)
-        df_plot_exp = df_exp_filt.melt(id_vars=["Portfolio"], value_vars=metrics, var_name="Metric", value_name="Value")
-        fig_exp = go.Figure()
-        for i, portfolio in enumerate(sel_ports_exp):
-            df_port = df_plot_exp[df_plot_exp["Portfolio"] == portfolio]
-            fig_exp.add_trace(go.Bar(
-                x=df_port["Metric"], y=df_port["Value"], name=portfolio,
-                marker_color=palette[i % len(palette)],
-                text=df_port["Value"].round(1), textposition="auto",
-                texttemplate="%{text:.1f}", marker_line_width=0
-            ))
-        fig_exp.update_layout(**PLOT_LAYOUT, barmode="group", height=500,
-                              xaxis_title="Metric", yaxis_title="Value")
-        st.plotly_chart(fig_exp, use_container_width=True)
-
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df_exp_filt.to_excel(writer, sheet_name="Exposure Data", index=False)
-        st.download_button(
-            "📥 Download Exposure data as Excel", data=output.getvalue(),
-            file_name="exposure_data.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_exposure"
-        )
-
-        # Comparison Analysis
-        st.markdown("---")
-        st.markdown('<div class="section-header">Comparison Analysis — Portfolio vs Bucket</div>', unsafe_allow_html=True)
-
-        default_portfolio_exp = "E7X"
-        default_index_exp = sel_ports_exp.index(default_portfolio_exp) if default_portfolio_exp in sel_ports_exp else 0
-        sel_port_exp = st.selectbox("Analysis portfolio", sel_ports_exp, index=default_index_exp, key="exp_analysis_port")
-
-        df_analysis_exp = df_exp_filt[df_exp_filt["Portfolio"] == sel_port_exp][["Portfolio"] + metrics]
-        df_bucket_exp   = df_exp_filt[df_exp_filt["Portfolio"] != sel_port_exp][["Portfolio"] + metrics]
-
-        if df_bucket_exp.empty:
-            st.markdown('<div class="info-box">⚠️ Not enough portfolios selected for bucket comparison.</div>', unsafe_allow_html=True)
+        if len(selected_list) == 1:
+            df_show = df[df['L1'].isin(selected_list)].copy()
+            label = f"Scenari in: {selected_list[0]}"
         else:
-            df_bucket_stats_exp = df_bucket_exp[metrics].agg(
-                ["median", lambda x: x.quantile(0.25), lambda x: x.quantile(0.75)]
-            ).T
-            df_bucket_stats_exp.columns = ["bucket_median", "q25", "q75"]
+            # Scenari comuni a tutte le L1 selezionate
+            sets_per_l1 = [set(df[df['L1'] == l1]['Scenario'].unique()) for l1 in selected_list]
+            common = sets_per_l1[0].intersection(*sets_per_l1[1:])
+            df_show = df[df['L1'].isin(selected_list) & df['Scenario'].isin(common)].copy()
+            label = f"Scenari comuni a: {' · '.join(sorted(selected_list))}"
 
-            df_plot_comp = df_analysis_exp.melt(id_vars=["Portfolio"], value_vars=metrics, var_name="Metric", value_name="Value")
-            df_plot_comp = df_plot_comp.merge(
-                df_bucket_stats_exp.reset_index().rename(columns={"index": "Metric"}), on="Metric", how="left"
-            )
+        st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
 
-            fig_comp = go.Figure()
-            for _, r in df_plot_comp.iterrows():
-                fig_comp.add_trace(go.Scatter(
-                    x=[r["q25"], r["q75"]], y=[r["Metric"], r["Metric"]],
-                    mode="lines", line=dict(width=14, color="rgba(0,0,255,0.25)"),
-                    showlegend=False, hoverinfo="skip"
-                ))
-            fig_comp.add_trace(go.Scatter(
-                x=df_plot_comp["bucket_median"], y=df_plot_comp["Metric"],
-                mode="markers", marker=dict(size=9, color="blue"),
-                name="Bucket median"
-            ))
-            fig_comp.add_trace(go.Scatter(
-                x=df_plot_comp["Value"], y=df_plot_comp["Metric"],
-                mode="markers", marker=dict(size=14, symbol="star", color="orange"),
-                name=sel_port_exp
-            ))
-            fig_comp.update_layout(**PLOT_LAYOUT, height=600, hovermode="y",
-                                   xaxis_title="Exposure Value", yaxis_title="Metric")
-            st.plotly_chart(fig_comp, use_container_width=True)
+        if df_show.empty:
+            st.info("Nessuno scenario stessa contemporaneamente tutte le aree selezionate.")
+        else:
+            render_scenario_table(df_show, multi_mode=(len(selected_list) > 1))
+    else:
+        st.markdown(
+            '<div style="font-family:DM Mono,monospace;font-size:0.78rem;color:#888880;margin-top:1rem;">'
+            '← Clicca su una o più asset class per visualizzare gli scenari.</div>',
+            unsafe_allow_html=True
+        )
 
-            st.markdown(
-                """
-                <div style="display: flex; align-items: center; font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #888880;">
-                    <span style="margin-right: 4px;">Note: the shaded areas</span>
-                    <div style="width: 20px; height: 14px; background-color: rgba(0,0,255,0.25); margin: 0 4px; border: 1px solid rgba(0,0,0,0.1);"></div>
-                    <span>represent the dispersion between the 25th and 75th percentile of the Bucket.</span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            df_dl_comp = df_plot_comp.rename(columns={
-                "bucket_median": "Bucket Portfolio Median", "q25": "25% Quantile",
-                "q75": "75% Quantile", "Value": sel_port_exp
-            })
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                df_dl_comp.to_excel(writer, sheet_name="Exposure Comparison", index=False)
-            st.download_button(
-                f"📥 Download {sel_port_exp} vs Bucket Exposure data as Excel", data=output.getvalue(),
-                file_name=f"{sel_port_exp}_vs_bucket_exposure.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"download_{sel_port_exp}_vs_bucket_exposure"
-            )
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — LEGEND
-# ══════════════════════════════════════════════════════════════════════════════
-with tab_legenda:
-    legend_title = ("EGQ Flexible Multistrategy vs Index and Cash"
-                    if chart_type == "EGQ vs Index and Cash"
-                    else "E7X Dynamic Asset Allocation vs Funds")
-    st.markdown(f'<div class="page-title">{legend_title}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Reference · Tickers & Scenarios</div>', unsafe_allow_html=True)
-
-    sheet_main   = "EGQ" if chart_type == "EGQ vs Index and Cash" else "E7X"
-    legenda_main = load_legenda_sheet(sheet_name=sheet_main, usecols="A:C")
-
-    st.markdown('<div class="section-header">Series</div>', unsafe_allow_html=True)
-    st.dataframe(legenda_main, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    legenda_scenari = load_legenda_sheet(sheet_name="Scenari", usecols="A:C")
-    st.markdown('<div class="section-header">Stress Test Scenarios</div>', unsafe_allow_html=True)
-    st.dataframe(legenda_scenari, use_container_width=True, hide_index=True)
+# ─── FOOTER ────────────────────────────────────────────────────────────────────
+st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown(
+    '<div style="font-family:DM Mono,monospace;font-size:0.6rem;color:#c8c4bc;text-align:center;">'
+    'Stress Test Dashboard · ListaxMapping / Pivot · MAIN</div>',
+    unsafe_allow_html=True
+)
