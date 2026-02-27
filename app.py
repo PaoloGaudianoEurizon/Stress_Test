@@ -34,38 +34,57 @@ st.markdown("""
     margin-top: -10px; margin-bottom: 4px; min-height: 16px;
 }
 
-/* ── Colora i bottoni mini-pos in verde scuro ── */
+/* ── Comprime lo spazio verticale attorno ai bottoni mini ── */
+[data-testid="stMarkdownContainer"]:has(.mini-pos-marker),
+[data-testid="stMarkdownContainer"]:has(.mini-neg-marker) {
+    margin: 0 !important; padding: 0 !important; line-height: 0 !important;
+}
+[data-testid="stMarkdownContainer"]:has(.mini-pos-marker) + div[data-testid="stButton"],
+[data-testid="stMarkdownContainer"]:has(.mini-neg-marker) + div[data-testid="stButton"] {
+    margin-top: 2px !important;
+    margin-bottom: 4px !important;
+}
+
+/* ── Bottoni mini-pos: verde pieno, piccoli ── */
 [data-testid="stMarkdownContainer"]:has(.mini-pos-marker)
   + div[data-testid="stButton"] button {
     background: #15803d !important;
     color: #ffffff !important;
-    border-color: #14532d !important;
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    padding: 5px 4px !important;
-    line-height: 1.3 !important;
+    border: 1.5px solid #14532d !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    line-height: 1 !important;
+    border-radius: 5px !important;
 }
 [data-testid="stMarkdownContainer"]:has(.mini-pos-marker)
   + div[data-testid="stButton"] button:hover {
     background: #166534 !important;
     border-color: #14532d !important;
+    color: #ffffff !important;
 }
 
-/* ── Colora i bottoni mini-neg in rosso scuro ── */
+/* ── Bottoni mini-neg: rosso pieno, piccoli ── */
 [data-testid="stMarkdownContainer"]:has(.mini-neg-marker)
   + div[data-testid="stButton"] button {
     background: #b91c1c !important;
     color: #ffffff !important;
-    border-color: #7f1d1d !important;
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    padding: 5px 4px !important;
-    line-height: 1.3 !important;
+    border: 1.5px solid #7f1d1d !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    line-height: 1 !important;
+    border-radius: 5px !important;
 }
 [data-testid="stMarkdownContainer"]:has(.mini-neg-marker)
   + div[data-testid="stButton"] button:hover {
     background: #991b1b !important;
     border-color: #7f1d1d !important;
+    color: #ffffff !important;
 }
 
 /* ── Quick-view panel ── */
@@ -289,7 +308,7 @@ def render_quick_view(df_context, col_name):
         n = df_show['Scenario'].nunique()
         st.markdown(
             f'<div style="font-size:0.72rem;color:#6b6b6b;margin-bottom:8px;">'
-            f'{n} scenario{"" if n==1 else "i"} trovato{"" if n==1 else "i"}</div>',
+            f'{"1 scenario trovato" if n==1 else f"{n} scenari trovati"}</div>',
             unsafe_allow_html=True
         )
         st.markdown(build_scenario_table_html(df_show, th_class), unsafe_allow_html=True)
@@ -321,23 +340,20 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
             if show_mini:
                 mc1, mc2 = st.columns(2)
                 with mc1:
-                    # CSS marker → sibling button gets green styling
                     st.markdown('<span class="mini-pos-marker"></span>', unsafe_allow_html=True)
                     if st.button(
-                        f"▲ {n_pos}\nPositivi",
+                        f"▲ {n_pos}  Positivi",
                         key=f"mini_pos_{on_select_key}_{item}",
                         use_container_width=True
                     ):
                         st.session_state.quick_view = {
                             'col': col_name, 'item': item, 'dir': 'pos'
                         }
-                        # also clear any main drill selection so we stay at this level
                         st.rerun()
                 with mc2:
-                    # CSS marker → sibling button gets red styling
                     st.markdown('<span class="mini-neg-marker"></span>', unsafe_allow_html=True)
                     if st.button(
-                        f"▼ {n_neg}\nNegativi",
+                        f"▼ {n_neg}  Negativi",
                         key=f"mini_neg_{on_select_key}_{item}",
                         use_container_width=True
                     ):
