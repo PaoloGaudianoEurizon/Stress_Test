@@ -163,15 +163,29 @@ def load_data():
     except Exception:
         dm = pd.DataFrame(columns=['Stress_Scenarios', 'Long_des'])
 
-    return df, dm
+    # Carica sheet 'Lista Scenari' col F (index 5) = info aggiuntiva per export
+    try:
+        ls = pd.read_excel(FILE_PATH, sheet_name="Lista Scenari", header=0)
+        # Col A (index 0) = Scenario name, Col F (index 5) = extra info
+        ls_cols = ls.columns.tolist()
+        ls_exp  = ls.iloc[:, [0, 5]].copy()
+        ls_exp.columns = ['Scenario', 'ExtraInfo']
+        ls_exp = ls_exp.dropna(subset=['Scenario'])
+        ls_exp['Scenario']   = ls_exp['Scenario'].astype(str).str.strip()
+        ls_exp['ExtraInfo']  = ls_exp['ExtraInfo'].fillna('').astype(str).str.strip()
+    except Exception:
+        ls_exp = pd.DataFrame(columns=['Scenario', 'ExtraInfo'])
+
+    return df, dm, ls_exp
 
 try:
-    df, dm = load_data()
+    df, dm, ls_exp = load_data()
 except FileNotFoundError:
     st.error(f"File `{FILE_PATH}` non trovato nella repository.")
     st.stop()
 
-desc_map = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
+desc_map  = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
+extra_map = dict(zip(ls_exp['Scenario'], ls_exp['ExtraInfo']))
 
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 defaults = {
@@ -242,6 +256,41 @@ components.html("""
 })();
 </script>
 """, height=0)
+
+import io
+
+# ─── EXPORT ────────────────────────────────────────────────────────────────────
+def build_export_bytes(df_sub, label="export"):
+    """
+    Builds an Excel file (bytes) from df_sub, one row per (Scenario, L3 factor).
+    Columns: Scenario | Descrizione | ExtraInfo (col F Lista Scenari) | L1 | L2 | L3 | ShockValue
+    """
+    rows = []
+    for _, r in df_sub.sort_values(['Scenario', 'L1', 'L2', 'L3']).iterrows():
+        scenario  = str(r['Scenario'])
+        long_des  = desc_map.get(scenario.strip(), '')
+        extra     = extra_map.get(scenario.strip(), '')
+        rows.append({
+            'Scenario':     scenario,
+            'Descrizione':  long_des,
+            'Info (col F)': extra,
+            'L1':           str(r.get('L1', '')),
+            'L2':           str(r.get('L2', '')),
+            'L3':           str(r.get('L3', '')),
+            'ShockValue':   str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
+        })
+    export_df = pd.DataFrame(rows)
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        export_df.to_excel(writer, index=False, sheet_name='Scenari')
+        ws = writer.sheets['Scenari']
+        # Auto-width
+        for col_cells in ws.columns:
+            max_len = max((len(str(c.value or '')) for c in col_cells), default=10)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 50)
+    buf.seek(0)
+    return buf.getvalue()
 
 # ─── GROUPED SCENARIO TABLE ────────────────────────────────────────────────────
 def build_grouped_table_html(df_sub, th_class=""):
@@ -324,11 +373,23 @@ def render_quick_view(df_context, col_name):
         st.info("Nessuno scenario trovato per questa selezione.")
     else:
         n = df_show['Scenario'].nunique()
-        st.markdown(
-            f'<div style="font-size:0.72rem;color:#6b6b6b;margin-bottom:8px;">'
-            f'{"1 scenario trovato" if n == 1 else f"{n} scenari trovati"}</div>',
-            unsafe_allow_html=True
-        )
+        col_info, col_dl, _ = st.columns([2, 1.5, 6])
+        with col_info:
+            st.markdown(
+                f'<div style="font-size:0.72rem;color:#6b6b6b;padding-top:8px;">'
+                f'{"1 scenario trovato" if n == 1 else f"{n} scenari trovati"}</div>',
+                unsafe_allow_html=True
+            )
+        with col_dl:
+            fname = f"scenari_{item}_{direction}.xlsx".replace(' ', '_')
+            st.download_button(
+                label="⬇ Esporta Excel",
+                data=build_export_bytes(df_show),
+                file_name=fname,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_qv_{col_name}_{item}_{direction}",
+                use_container_width=True,
+            )
         st.markdown(build_grouped_table_html(df_show, th_class), unsafe_allow_html=True)
 
 # ─── CARD RENDERER ─────────────────────────────────────────────────────────────
@@ -345,8 +406,9 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
 
     for i, item in enumerate(items):
         sub      = df_filtered[df_filtered[col_name] == item]
-        n_pos    = int((sub['_shock_num'] > 0).sum())
-        n_neg    = int((sub['_shock_num'] < 0).sum())
+        # Conta scenari UNICI con almeno uno shock pos/neg (non righe shock)
+        n_pos    = int(sub[sub['_shock_num'] > 0]['Scenario'].nunique())
+        n_neg    = int(sub[sub['_shock_num'] < 0]['Scenario'].nunique())
         mean_v   = mean_shock_for_group(sub)
         is_sel   = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
         btn_label = f"{'✓ ' if is_sel else ''}{item}"
@@ -447,6 +509,24 @@ def render_scenario_table(df_sub, multi_mode=False):
         df_filtered = df_sub
 
     if not multi_mode:
+        # Export button
+        n_sc = df_filtered['Scenario'].nunique()
+        col_info2, col_dl2, _ = st.columns([2, 1.5, 6])
+        with col_info2:
+            st.markdown(
+                f'<div style="font-size:0.72rem;color:#6b6b6b;padding-top:8px;">'
+                f'{"1 scenario" if n_sc == 1 else f"{n_sc} scenari"}</div>',
+                unsafe_allow_html=True
+            )
+        with col_dl2:
+            st.download_button(
+                label="⬇ Esporta Excel",
+                data=build_export_bytes(df_filtered),
+                file_name=f"scenari_{st.session_state.get('sel_l3','export')}.xlsx".replace(' ', '_'),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_l3",
+                use_container_width=True,
+            )
         # Grouped: scenario name + L3 factors
         st.markdown(build_grouped_table_html(df_filtered), unsafe_allow_html=True)
     else:
