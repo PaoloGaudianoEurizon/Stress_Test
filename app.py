@@ -6,110 +6,111 @@ import re
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
 
-# ─── CSS — stile ispirato ad "Analisi BEL" (sfondo bianco, font sistema, toni blu/grigio) ───
+# ─── CSS — stile identico a "Analisi BEL" (bianco puro, font Streamlit default, accento rosso #ff4b4b) ───
 st.markdown("""
 <style>
-/* ── Background & base ── */
-.stApp { background: #f0f2f6; }
+/* ── Background: bianco puro come BEL app ── */
+.stApp { background: #ffffff; }
+[data-testid="stAppViewContainer"] { background: #ffffff; }
+[data-testid="stSidebar"] { background: #f8f9fa; }
 
-/* ── Main title ── */
+/* ── Main title: stile h1 nativo Streamlit ── */
 .main-title {
-    font-size: 2rem; font-weight: 700; color: #1f2937;
-    border-bottom: 3px solid #3b82f6; padding-bottom: 0.4rem;
-    margin-bottom: 0.2rem;
+    font-size: 2.1rem; font-weight: 700; color: #0e1117;
+    margin-bottom: 0.2rem; line-height: 1.2;
 }
 .subtitle {
-    font-size: 0.8rem; color: #6b7280; margin-bottom: 1.8rem;
-    letter-spacing: 0.04em; text-transform: uppercase;
+    font-size: 0.82rem; color: #6b6b6b; margin-bottom: 1.8rem;
+    font-style: italic;
 }
 .breadcrumb {
-    font-size: 0.75rem; color: #6b7280; margin-bottom: 1.2rem;
+    font-size: 0.78rem; color: #6b6b6b; margin-bottom: 1.2rem;
 }
-.breadcrumb span { color: #1f2937; font-weight: 600; }
-.breadcrumb .sep { color: #9ca3af; margin: 0 6px; }
+.breadcrumb span { color: #0e1117; font-weight: 600; }
+.breadcrumb .sep { color: #cccccc; margin: 0 6px; }
 
-/* ── Section headers ── */
+/* ── Section headers: rosso Streamlit come i subheader BEL ── */
 .section-header {
-    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
-    color: #6b7280; margin: 1.6rem 0 0.8rem;
+    font-size: 1.1rem; font-weight: 600; color: #0e1117;
+    margin: 1.6rem 0 0.8rem;
     display: flex; align-items: center; gap: 10px;
+    border-left: 4px solid #ff4b4b; padding-left: 10px;
 }
-.section-header::after { content: ''; flex: 1; height: 1px; background: #d1d5db; }
+.section-header::after { content: ''; flex: 1; height: 1px; background: #e6e6e6; }
 
 /* ── Card subtitle ── */
 .card-sub {
-    font-size: 0.68rem; color: #6b7280;
+    font-size: 0.72rem; color: #6b6b6b;
     margin-top: -10px; margin-bottom: 8px; min-height: 16px;
 }
 
-/* ── Selected pill ── */
+/* ── Selected pill: rosso come le pill del multiselect BEL ── */
 .sel-pill {
-    display: inline-block; background: #3b82f6; color: #ffffff;
-    border-radius: 4px; font-size: 0.65rem;
-    padding: 2px 9px; margin: 2px; letter-spacing: 0.03em;
+    display: inline-block; background: #ff4b4b; color: #ffffff;
+    border-radius: 4px; font-size: 0.68rem;
+    padding: 2px 9px; margin: 2px;
 }
 
-/* ── Hint box (same tone as Streamlit info) ── */
+/* ── Hint box: tono neutro/info ── */
 .hint-box {
-    background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
-    padding: 0.6rem 1rem; font-size: 0.75rem;
-    color: #1d4ed8; margin-bottom: 1.2rem;
+    background: #f0f2f6; border: 1px solid #d9d9d9; border-radius: 6px;
+    padding: 0.6rem 1rem; font-size: 0.78rem;
+    color: #31333f; margin-bottom: 1.2rem;
 }
 
 /* ── Stat boxes ── */
-.stat-row { display: flex; gap: 14px; margin-bottom: 1.4rem; flex-wrap: wrap; }
 .stat-box {
-    background: #ffffff; border: 1.5px solid #e5e7eb; border-radius: 10px;
+    background: #ffffff; border: 1px solid #e6e6e6; border-radius: 8px;
     padding: 0.75rem 1.2rem; min-width: 130px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-.stat-box .sv { font-size: 1.6rem; font-weight: 700; color: #1f2937; line-height: 1; }
-.stat-box .sk { font-size: 0.65rem; color: #6b7280; text-transform: uppercase;
-    letter-spacing: 0.07em; margin-top: 4px; }
+.stat-box .sv { font-size: 1.6rem; font-weight: 700; color: #0e1117; line-height: 1; }
+.stat-box .sk { font-size: 0.65rem; color: #6b6b6b; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-top: 4px; }
 
 /* ── Scenario table ── */
 .scenario-table {
-    width: 100%; border-collapse: collapse; font-size: 0.8rem;
-    background: #ffffff; border-radius: 10px; overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    background: #ffffff; border-radius: 8px; overflow: hidden;
+    border: 1px solid #e6e6e6;
 }
 .scenario-table th {
-    background: #3b82f6; color: #ffffff; text-transform: uppercase;
-    letter-spacing: 0.06em; padding: 11px 16px; text-align: left;
-    font-weight: 600; font-size: 0.72rem;
+    background: #ff4b4b; color: #ffffff;
+    padding: 10px 16px; text-align: left;
+    font-weight: 600; font-size: 0.75rem; letter-spacing: 0.03em;
 }
 .scenario-table td {
-    padding: 10px 16px; border-bottom: 1px solid #f3f4f6;
-    color: #374151; vertical-align: top;
+    padding: 10px 16px; border-bottom: 1px solid #f0f0f0;
+    color: #31333f; vertical-align: top;
 }
 .scenario-table tr:last-child td { border-bottom: none; }
-.scenario-table tr:hover td { background: #f9fafb; }
+.scenario-table tr:hover td { background: #fafafa; }
 
-/* ── Shock colours ── */
-.shock-pos { color: #15803d; font-weight: 600; }
-.shock-neg { color: #b91c1c; font-weight: 600; }
-.shock-zero { color: #6b7280; }
+/* ── Shock colours: verde/rosso standard ── */
+.shock-pos { color: #21c354; font-weight: 600; }
+.shock-neg { color: #ff4b4b; font-weight: 600; }
+.shock-zero { color: #6b6b6b; }
 
-/* ── Long description under scenario name ── */
+/* ── Long description ── */
 .long-des {
-    font-size: 0.72rem; color: #6b7280;
+    font-size: 0.72rem; color: #6b6b6b;
     margin-top: 4px; line-height: 1.45;
 }
 
 /* ── Multi-mode shock list ── */
 .shock-list { display: flex; flex-direction: column; gap: 3px; }
 .shock-row-item { display: flex; gap: 6px; align-items: baseline; }
-.shock-path { font-size: 0.63rem; color: #9ca3af; }
+.shock-path { font-size: 0.63rem; color: #aaaaaa; }
 
-/* ── Buttons ── */
+/* ── Buttons: stile nativo Streamlit ── */
 .stButton > button {
-    background: #ffffff; color: #374151;
-    border: 1.5px solid #d1d5db; border-radius: 8px;
-    font-weight: 600; font-size: 0.85rem;
-    transition: all 0.15s ease;
+    background: #ffffff; color: #31333f;
+    border: 1px solid #d9d9d9; border-radius: 6px;
+    font-size: 0.875rem; font-weight: 400;
+    transition: all 0.1s ease;
 }
 .stButton > button:hover {
-    border-color: #3b82f6; background: #eff6ff; color: #1d4ed8;
+    border-color: #ff4b4b; color: #ff4b4b; background: #fff5f5;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -133,9 +134,9 @@ def mean_shock_for_group(df_sub):
     return vals.mean() if len(vals) else np.nan
 
 def direction_label(d):
-    return {"pos": ("▲ Positivo", "#15803d"),
-            "neg": ("▼ Negativo", "#b91c1c"),
-            "mix": ("~ Misto",    "#b45309")}[d]
+    return {"pos": ("▲ Positivo", "#21c354"),
+            "neg": ("▼ Negativo", "#ff4b4b"),
+            "mix": ("~ Misto",    "#ffa421")}[d]
 
 def clean_items(series):
     return sorted([str(i) for i in series.dropna().unique()
@@ -286,7 +287,7 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_pos else 'pos'
             st.rerun()
         if active_pos:
-            st.markdown('<div style="height:3px;background:#15803d;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:3px;background:#21c354;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
     with c3:
         active_neg = cur_filter == 'neg'
@@ -299,7 +300,7 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_neg else 'neg'
             st.rerun()
         if active_neg:
-            st.markdown('<div style="height:3px;background:#b91c1c;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:3px;background:#ff4b4b;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
 
     return n_pos, n_neg
 
