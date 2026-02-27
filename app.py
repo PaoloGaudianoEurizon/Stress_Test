@@ -6,30 +6,23 @@ import re
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
 
-# ─── CSS — stile identico a "Analisi BEL" (bianco puro, font Streamlit default, accento rosso #ff4b4b) ───
+# ─── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Background: bianco puro come BEL app ── */
 .stApp { background: #ffffff; }
 [data-testid="stAppViewContainer"] { background: #ffffff; }
-[data-testid="stSidebar"] { background: #f8f9fa; }
 
-/* ── Main title: stile h1 nativo Streamlit ── */
 .main-title {
     font-size: 2.1rem; font-weight: 700; color: #0e1117;
     margin-bottom: 0.2rem; line-height: 1.2;
 }
 .subtitle {
-    font-size: 0.82rem; color: #6b6b6b; margin-bottom: 1.8rem;
-    font-style: italic;
+    font-size: 0.82rem; color: #6b6b6b; margin-bottom: 1.8rem; font-style: italic;
 }
-.breadcrumb {
-    font-size: 0.78rem; color: #6b6b6b; margin-bottom: 1.2rem;
-}
+.breadcrumb { font-size: 0.78rem; color: #6b6b6b; margin-bottom: 1.2rem; }
 .breadcrumb span { color: #0e1117; font-weight: 600; }
 .breadcrumb .sep { color: #cccccc; margin: 0 6px; }
 
-/* ── Section headers: rosso Streamlit come i subheader BEL ── */
 .section-header {
     font-size: 1.1rem; font-weight: 600; color: #0e1117;
     margin: 1.6rem 0 0.8rem;
@@ -38,27 +31,32 @@ st.markdown("""
 }
 .section-header::after { content: ''; flex: 1; height: 1px; background: #e6e6e6; }
 
-/* ── Card subtitle ── */
 .card-sub {
     font-size: 0.72rem; color: #6b6b6b;
-    margin-top: -10px; margin-bottom: 8px; min-height: 16px;
+    margin-top: -10px; margin-bottom: 4px; min-height: 16px;
 }
 
-/* ── Selected pill: rosso come le pill del multiselect BEL ── */
+/* ── Mini pos/neg boxes sotto le card L1 e L2 ── */
+.mini-pn { display: flex; gap: 5px; margin-bottom: 12px; }
+.mini-box {
+    flex: 1; border-radius: 6px; padding: 5px 6px;
+    text-align: center; line-height: 1.25;
+}
+.mini-box.pos { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+.mini-box.neg { background: #fff5f5; border: 1px solid #fecaca; color: #ff4b4b; }
+.mini-box .mn { font-size: 1.05rem; font-weight: 700; display: block; }
+.mini-box .mk { font-size: 0.58rem; text-transform: uppercase;
+    letter-spacing: 0.05em; opacity: 0.75; }
+
 .sel-pill {
     display: inline-block; background: #ff4b4b; color: #ffffff;
-    border-radius: 4px; font-size: 0.68rem;
-    padding: 2px 9px; margin: 2px;
+    border-radius: 4px; font-size: 0.68rem; padding: 2px 9px; margin: 2px;
 }
-
-/* ── Hint box: tono neutro/info ── */
 .hint-box {
     background: #f0f2f6; border: 1px solid #d9d9d9; border-radius: 6px;
-    padding: 0.6rem 1rem; font-size: 0.78rem;
-    color: #31333f; margin-bottom: 1.2rem;
+    padding: 0.6rem 1rem; font-size: 0.78rem; color: #31333f; margin-bottom: 1.2rem;
 }
 
-/* ── Stat boxes ── */
 .stat-box {
     background: #ffffff; border: 1px solid #e6e6e6; border-radius: 8px;
     padding: 0.75rem 1.2rem; min-width: 130px;
@@ -68,7 +66,6 @@ st.markdown("""
 .stat-box .sk { font-size: 0.65rem; color: #6b6b6b; text-transform: uppercase;
     letter-spacing: 0.06em; margin-top: 4px; }
 
-/* ── Scenario table ── */
 .scenario-table {
     width: 100%; border-collapse: collapse; font-size: 0.82rem;
     background: #ffffff; border-radius: 8px; overflow: hidden;
@@ -86,28 +83,18 @@ st.markdown("""
 .scenario-table tr:last-child td { border-bottom: none; }
 .scenario-table tr:hover td { background: #fafafa; }
 
-/* ── Shock colours: verde/rosso standard ── */
 .shock-pos { color: #21c354; font-weight: 600; }
 .shock-neg { color: #ff4b4b; font-weight: 600; }
 .shock-zero { color: #6b6b6b; }
-
-/* ── Long description ── */
-.long-des {
-    font-size: 0.72rem; color: #6b6b6b;
-    margin-top: 4px; line-height: 1.45;
-}
-
-/* ── Multi-mode shock list ── */
+.long-des { font-size: 0.72rem; color: #6b6b6b; margin-top: 4px; line-height: 1.45; }
 .shock-list { display: flex; flex-direction: column; gap: 3px; }
 .shock-row-item { display: flex; gap: 6px; align-items: baseline; }
 .shock-path { font-size: 0.63rem; color: #aaaaaa; }
 
-/* ── Buttons: stile nativo Streamlit ── */
 .stButton > button {
     background: #ffffff; color: #31333f;
     border: 1px solid #d9d9d9; border-radius: 6px;
-    font-size: 0.875rem; font-weight: 400;
-    transition: all 0.1s ease;
+    font-size: 0.875rem; font-weight: 400; transition: all 0.1s ease;
 }
 .stButton > button:hover {
     border-color: #ff4b4b; color: #ff4b4b; background: #fff5f5;
@@ -123,20 +110,9 @@ def parse_shock_value(val):
     m = re.search(r'[-+]?\d+\.?\d*', s)
     return float(m.group()) if m else np.nan
 
-def shock_direction(mean_val):
-    if pd.isna(mean_val): return "mix"
-    if mean_val > 0: return "pos"
-    if mean_val < 0: return "neg"
-    return "mix"
-
 def mean_shock_for_group(df_sub):
     vals = df_sub['_shock_num'].dropna()
     return vals.mean() if len(vals) else np.nan
-
-def direction_label(d):
-    return {"pos": ("▲ Positivo", "#21c354"),
-            "neg": ("▼ Negativo", "#ff4b4b"),
-            "mix": ("~ Misto",    "#ffa421")}[d]
 
 def clean_items(series):
     return sorted([str(i) for i in series.dropna().unique()
@@ -211,26 +187,43 @@ with col_m2:
 st.markdown("---")
 
 # ─── CARD RENDERER ─────────────────────────────────────────────────────────────
-def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
+def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_mini=False):
+    """
+    show_mini=True  → mostra mini box ▲pos / ▼neg sotto il pulsante (L1 e L2).
+    show_mini=False → solo conteggio scenari (L3).
+    """
     if not items: return
     ncols = min(len(items), 4)
     cols = st.columns(ncols)
     for i, item in enumerate(items):
-        sub = df_filtered[df_filtered[col_name] == item]
-        mean_v = mean_shock_for_group(sub)
-        n_sc = sub['Scenario'].nunique()
-        d = shock_direction(mean_v)
-        lbl, col_hex = direction_label(d)
-        is_sel = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
+        sub   = df_filtered[df_filtered[col_name] == item]
+        n_sc  = sub['Scenario'].nunique()
+        n_pos = int((sub['_shock_num'] > 0).sum())
+        n_neg = int((sub['_shock_num'] < 0).sum())
+        is_sel    = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
         btn_label = f"{'✓ ' if is_sel else ''}{item}"
 
         with cols[i % ncols]:
             clicked = st.button(btn_label, key=f"btn_{on_select_key}_{item}", use_container_width=True)
+
             st.markdown(
-                f'<div class="card-sub"><span style="color:{col_hex};font-weight:600;">{lbl}</span>'
-                f'&nbsp;·&nbsp;{n_sc} scenari</div>',
+                f'<div class="card-sub">{n_sc} scenari</div>',
                 unsafe_allow_html=True
             )
+
+            if show_mini:
+                st.markdown(f"""
+                <div class="mini-pn">
+                    <div class="mini-box pos">
+                        <span class="mn">▲ {n_pos}</span>
+                        <span class="mk">Positivi</span>
+                    </div>
+                    <div class="mini-box neg">
+                        <span class="mn">▼ {n_neg}</span>
+                        <span class="mk">Negativi</span>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
             if clicked:
                 if multi:
                     if item in st.session_state.sel_l1_set:
@@ -249,18 +242,16 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False):
                     st.session_state.shock_filter = 'all'
                 st.rerun()
 
-# ─── STAT BOXES WITH FILTER ────────────────────────────────────────────────────
+# ─── STAT BOXES WITH FILTER ─────────────────────────────────────────────────
 def render_stat_boxes(df_sub):
-    mean_v = mean_shock_for_group(df_sub)
-    n_sc   = df_sub['Scenario'].nunique()
-    n_pos  = int((df_sub['_shock_num'] > 0).sum())
-    n_neg  = int((df_sub['_shock_num'] < 0).sum())
-    d      = shock_direction(mean_v)
-    lbl, col_hex = direction_label(d)
+    """Scenari totali + bottoni filtro ▲positivi / ▼negativi. Nessuna direzione prevalente."""
+    n_sc  = df_sub['Scenario'].nunique()
+    n_pos = int((df_sub['_shock_num'] > 0).sum())
+    n_neg = int((df_sub['_shock_num'] < 0).sum())
 
     cur_filter = st.session_state.shock_filter
 
-    c0, c1, c2, c3, c4 = st.columns([1.4, 1.8, 1.4, 1.4, 6])
+    c0, c1, c2, c3 = st.columns([1.4, 1.4, 1.4, 7])
 
     with c0:
         st.markdown(f"""
@@ -270,13 +261,6 @@ def render_stat_boxes(df_sub):
         </div>""", unsafe_allow_html=True)
 
     with c1:
-        st.markdown(f"""
-        <div class="stat-box">
-            <div class="sv" style="color:{col_hex};font-size:1.05rem;">{lbl}</div>
-            <div class="sk">Direzione prevalente</div>
-        </div>""", unsafe_allow_html=True)
-
-    with c2:
         active_pos = cur_filter == 'pos'
         if st.button(
             f"▲ {n_pos}  positivi",
@@ -287,9 +271,11 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_pos else 'pos'
             st.rerun()
         if active_pos:
-            st.markdown('<div style="height:3px;background:#21c354;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div style="height:3px;background:#21c354;border-radius:2px;margin-top:-6px;"></div>',
+                unsafe_allow_html=True)
 
-    with c3:
+    with c2:
         active_neg = cur_filter == 'neg'
         if st.button(
             f"▼ {n_neg}  negativi",
@@ -300,7 +286,9 @@ def render_stat_boxes(df_sub):
             st.session_state.shock_filter = 'all' if active_neg else 'neg'
             st.rerun()
         if active_neg:
-            st.markdown('<div style="height:3px;background:#ff4b4b;border-radius:2px;margin-top:-6px;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div style="height:3px;background:#ff4b4b;border-radius:2px;margin-top:-6px;"></div>',
+                unsafe_allow_html=True)
 
     return n_pos, n_neg
 
@@ -353,7 +341,7 @@ def render_scenario_table(df_sub, multi_mode=False):
         scenarios = sorted(df_filtered['Scenario'].unique())
 
         for scenario in scenarios:
-            sc_rows = df_filtered[df_filtered['Scenario'] == scenario]
+            sc_rows  = df_filtered[df_filtered['Scenario'] == scenario]
             long_des = desc_map.get(str(scenario).strip(), '')
             des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
 
@@ -382,8 +370,7 @@ def render_scenario_table(df_sub, multi_mode=False):
 
         st.markdown(
             '<div style="font-size:0.65rem;color:#9ca3af;margin-top:8px;">'
-            '⚠️ I valori mostrati sono quelli raw dall\'Excel per ciascuna combinazione L1 › L2 › L3, non medie. '
-            'La direzione ▲/▼ sulle card è calcolata come media degli shock numerici del gruppo.</div>',
+            '⚠️ I valori mostrati sono quelli raw dall\'Excel per ciascuna combinazione L1 › L2 › L3, non medie.</div>',
             unsafe_allow_html=True
         )
 
@@ -401,11 +388,12 @@ if st.session_state.mode == 'drill':
         parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l3}</span>')
     st.markdown(f'<div class="breadcrumb">{"".join(parts)}</div>', unsafe_allow_html=True)
 
+    # ── L1: con mini box ──
     st.markdown('<div class="section-header">Mapping Livello 1 — Asset Class</div>', unsafe_allow_html=True)
-    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False, show_mini=True)
 
     if st.session_state.sel_l1_single:
-        df_l1 = df[df['L1'] == st.session_state.sel_l1_single]
+        df_l1    = df[df['L1'] == st.session_state.sel_l1_single]
         l2_items = clean_items(df_l1['L2'])
         col_b, _ = st.columns([1, 5])
         with col_b:
@@ -416,11 +404,12 @@ if st.session_state.mode == 'drill':
                 st.session_state.shock_filter = 'all'
                 st.rerun()
         if l2_items:
+            # ── L2: con mini box ──
             st.markdown(f'<div class="section-header">Livello 2 — {st.session_state.sel_l1_single}</div>', unsafe_allow_html=True)
-            render_cards(l2_items, df_l1, 'L2', 'sel_l2', multi=False)
+            render_cards(l2_items, df_l1, 'L2', 'sel_l2', multi=False, show_mini=True)
 
     if st.session_state.sel_l1_single and st.session_state.sel_l2:
-        df_l2 = df[(df['L1'] == st.session_state.sel_l1_single) & (df['L2'] == st.session_state.sel_l2)]
+        df_l2    = df[(df['L1'] == st.session_state.sel_l1_single) & (df['L2'] == st.session_state.sel_l2)]
         l3_items = clean_items(df_l2['L3'])
         col_b2, _ = st.columns([1, 5])
         with col_b2:
@@ -430,8 +419,9 @@ if st.session_state.mode == 'drill':
                 st.session_state.shock_filter = 'all'
                 st.rerun()
         if l3_items:
+            # ── L3: senza mini box (porta alla tabella scenari) ──
             st.markdown(f'<div class="section-header">Livello 3 — {st.session_state.sel_l2}</div>', unsafe_allow_html=True)
-            render_cards(l3_items, df_l2, 'L3', 'sel_l3', multi=False)
+            render_cards(l3_items, df_l2, 'L3', 'sel_l3', multi=False, show_mini=False)
 
     if st.session_state.sel_l1_single and st.session_state.sel_l2 and st.session_state.sel_l3:
         df_l3 = df[
@@ -460,8 +450,9 @@ else:
         unsafe_allow_html=True
     )
 
+    # ── L1 multi: con mini box ──
     st.markdown('<div class="section-header">Seleziona Asset Class (multi-selezione)</div>', unsafe_allow_html=True)
-    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_set', multi=True)
+    render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_set', multi=True, show_mini=True)
 
     if st.session_state.sel_l1_set:
         pills_html = " ".join([f'<span class="sel-pill">✓ {x}</span>' for x in sorted(st.session_state.sel_l1_set)])
@@ -478,12 +469,12 @@ else:
 
         if len(selected_list) == 1:
             df_show = df[df['L1'].isin(selected_list)].copy()
-            label = f"Scenari in: {selected_list[0]}"
+            label   = f"Scenari in: {selected_list[0]}"
         else:
             sets_per_l1 = [set(df[df['L1'] == l1]['Scenario'].unique()) for l1 in selected_list]
-            common = sets_per_l1[0].intersection(*sets_per_l1[1:])
+            common  = sets_per_l1[0].intersection(*sets_per_l1[1:])
             df_show = df[df['L1'].isin(selected_list) & df['Scenario'].isin(common)].copy()
-            label = f"Scenari comuni a: {' · '.join(sorted(selected_list))}"
+            label   = f"Scenari comuni a: {' · '.join(sorted(selected_list))}"
 
         st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
 
