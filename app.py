@@ -196,12 +196,12 @@ st.markdown('<div class="subtitle">Asset class drill-down · Shock direction ana
 
 col_m1, col_m2, col_m3 = st.columns([2, 2, 8])
 with col_m1:
-    if st.button("🔍 Drill-down", use_container_width=True):
+    if st.button("🔍 Single-Asset", use_container_width=True):
         st.session_state.update({'mode': 'drill', 'sel_l1_set': set(), 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'shock_filter': 'all', 'quick_view': None})
         st.rerun()
 with col_m2:
-    if st.button("🔀 Multi-area", use_container_width=True):
+    if st.button("🔀 Multi-Asset", use_container_width=True):
         st.session_state.update({'mode': 'multi', 'sel_l2': None, 'sel_l3': None,
                                   'shock_filter': 'all', 'quick_view': None})
         st.rerun()
