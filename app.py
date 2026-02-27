@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import re
@@ -34,60 +35,7 @@ st.markdown("""
     margin-top: -10px; margin-bottom: 4px; min-height: 16px;
 }
 
-/* ── Comprime lo spazio verticale attorno ai bottoni mini ── */
-[data-testid="stMarkdownContainer"]:has(.mini-pos-marker),
-[data-testid="stMarkdownContainer"]:has(.mini-neg-marker) {
-    margin: 0 !important; padding: 0 !important; line-height: 0 !important;
-}
-[data-testid="stMarkdownContainer"]:has(.mini-pos-marker) + div[data-testid="stButton"],
-[data-testid="stMarkdownContainer"]:has(.mini-neg-marker) + div[data-testid="stButton"] {
-    margin-top: 2px !important;
-    margin-bottom: 4px !important;
-}
-
-/* ── Bottoni mini-pos: verde pieno, piccoli ── */
-[data-testid="stMarkdownContainer"]:has(.mini-pos-marker)
-  + div[data-testid="stButton"] button {
-    background: #15803d !important;
-    color: #ffffff !important;
-    border: 1.5px solid #14532d !important;
-    font-size: 0.68rem !important;
-    font-weight: 600 !important;
-    padding: 2px 6px !important;
-    min-height: 28px !important;
-    height: 28px !important;
-    line-height: 1 !important;
-    border-radius: 5px !important;
-}
-[data-testid="stMarkdownContainer"]:has(.mini-pos-marker)
-  + div[data-testid="stButton"] button:hover {
-    background: #166534 !important;
-    border-color: #14532d !important;
-    color: #ffffff !important;
-}
-
-/* ── Bottoni mini-neg: rosso pieno, piccoli ── */
-[data-testid="stMarkdownContainer"]:has(.mini-neg-marker)
-  + div[data-testid="stButton"] button {
-    background: #b91c1c !important;
-    color: #ffffff !important;
-    border: 1.5px solid #7f1d1d !important;
-    font-size: 0.68rem !important;
-    font-weight: 600 !important;
-    padding: 2px 6px !important;
-    min-height: 28px !important;
-    height: 28px !important;
-    line-height: 1 !important;
-    border-radius: 5px !important;
-}
-[data-testid="stMarkdownContainer"]:has(.mini-neg-marker)
-  + div[data-testid="stButton"] button:hover {
-    background: #991b1b !important;
-    border-color: #7f1d1d !important;
-    color: #ffffff !important;
-}
-
-/* ── Quick-view panel ── */
+/* ── Bottoni default ── */
 .qv-header {
     font-size: 0.82rem; font-weight: 600; color: #0e1117;
     padding: 8px 14px; border-radius: 6px 6px 0 0;
@@ -245,6 +193,46 @@ with col_m2:
         st.session_state.quick_view  = None
         st.rerun()
 st.markdown("---")
+
+# ─── JS: colora bottoni mini Positivi/Negativi via MutationObserver ───────────
+components.html("""
+<script>
+(function() {
+    function styleMiniBtns(doc) {
+        doc.querySelectorAll('button').forEach(function(btn) {
+            var txt = btn.innerText || btn.textContent || '';
+            if (txt.includes('Positivi')) {
+                btn.style.setProperty('background-color', '#15803d', 'important');
+                btn.style.setProperty('color', '#ffffff', 'important');
+                btn.style.setProperty('border', '1.5px solid #14532d', 'important');
+                btn.style.setProperty('font-size', '0.72rem', 'important');
+                btn.style.setProperty('font-weight', '600', 'important');
+                btn.style.setProperty('min-height', '30px', 'important');
+                btn.style.setProperty('height', '30px', 'important');
+                btn.style.setProperty('border-radius', '5px', 'important');
+                btn.setAttribute('data-mini', 'pos');
+            } else if (txt.includes('Negativi')) {
+                btn.style.setProperty('background-color', '#b91c1c', 'important');
+                btn.style.setProperty('color', '#ffffff', 'important');
+                btn.style.setProperty('border', '1.5px solid #7f1d1d', 'important');
+                btn.style.setProperty('font-size', '0.72rem', 'important');
+                btn.style.setProperty('font-weight', '600', 'important');
+                btn.style.setProperty('min-height', '30px', 'important');
+                btn.style.setProperty('height', '30px', 'important');
+                btn.style.setProperty('border-radius', '5px', 'important');
+                btn.setAttribute('data-mini', 'neg');
+            }
+        });
+    }
+    var target = window.parent.document.body;
+    styleMiniBtns(window.parent.document);
+    var observer = new MutationObserver(function() {
+        styleMiniBtns(window.parent.document);
+    });
+    observer.observe(target, { childList: true, subtree: true });
+})();
+</script>
+""", height=0)
 
 # ─── INLINE SCENARIO TABLE (for quick-view and drill) ─────────────────────────
 def build_scenario_table_html(df_sub, th_class=""):
