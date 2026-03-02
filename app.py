@@ -254,15 +254,13 @@ with col_m3:
         <div class="method-icon">?
             <div class="method-popup">
                 <div class="mp-title">📐 How scenario direction is determined</div>
-                <div class="mp-row">For each scenario, shocks are grouped by <b>unit type</b>
-                (pct, bps, rel%, days) and the <b>arithmetic mean</b> is computed per unit.</div>
-                <div class="mp-row">If all unit-type means agree in sign → the scenario
-                gets that direction:</div>
-                <div class="mp-row"><span class="mp-green">▲ Positive</span> — average net shock is positive across all unit types present.</div>
-                <div class="mp-row"><span class="mp-red">▼ Negative</span> — average net shock is negative across all unit types.</div>
-                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit types disagree in sign (e.g. pct is positive but bps is negative), or the scenario spans multiple asset classes with opposing directions.</div>
+                <div class="mp-row">For each scenario, all shocks belonging to the selected <b>asset class</b> (or sub-level) are collected.</div>
+                <div class="mp-row">Since shocks use different units (pct, bps, rel%, days), the mean is computed <b>separately per unit type</b> to avoid mixing incompatible scales — then the signs of those means are compared:</div>
+                <div class="mp-row"><span class="mp-green">▲ Positive</span> — all unit-type means are positive, so the net effect on the asset class is positive.</div>
+                <div class="mp-row"><span class="mp-red">▼ Negative</span> — all unit-type means are negative.</div>
+                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit-type means have conflicting signs (e.g. pct shocks average to +5% but bps shocks average to −80bps), so no single direction can be assigned. In Multi-Asset mode, also includes scenarios positive in one area and negative in another.</div>
                 <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
-                The direction re-evaluates as you drill down: at L2 it uses only L2 shocks, at L3 only L3 shocks.</div>
+                Direction re-evaluates as you drill down: at L2 it uses only that L2's shocks, at L3 only that L3's shocks.</div>
             </div>
         </div>
         <span class="method-label">Direction methodology</span>
