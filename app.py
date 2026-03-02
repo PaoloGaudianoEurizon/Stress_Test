@@ -114,34 +114,35 @@ def parse_shock(val):
     else:              unit = 'other'
     return num, unit
 
+def to_bps(num, unit):
+    """Convert shock value to bps for a unified mean. Returns NaN for excluded units."""
+    if pd.isna(num): return np.nan
+    if unit == 'bps':   return num
+    if unit == 'pct':   return num * 100
+    if unit == 'rel%':  return num * 100
+    # 'days', 'other', 'none', 'number' → excluded from direction calc
+    return np.nan
+
 def group_direction_score(sub):
     """
-    Per a subset of rows, compute per-unit arithmetic mean.
-    If all unit-means agree in sign → return a representative signed float.
-    If units disagree in sign → return NaN (mixed).
-    Ignores 'other'/'none' units.
+    Convert all shocks to bps (pct*100, bps as-is; exclude days/other).
+    Return arithmetic mean of converted values, or NaN if no valid data.
+    Mean == 0 is treated as 'zero' (symmetric scenario).
     """
-    unit_means = {}
-    for u, g in sub.groupby('_unit'):
-        if u in ('other', 'none'):
-            continue
-        vals = g['_num'].dropna()
-        if len(vals) > 0:
-            unit_means[u] = vals.mean()
-    if not unit_means:
+    vals = sub['_unit'].map(lambda u: u).values
+    bps_vals = [to_bps(r['_num'], r['_unit'])
+                for _, r in sub.iterrows()]
+    bps_vals = [v for v in bps_vals if not np.isnan(v)]
+    if not bps_vals:
         return np.nan
-    signs = set(1 if v > 0 else (-1 if v < 0 else 0) for v in unit_means.values())
-    if len(signs) == 1:
-        # All units agree → return mean of the unit means (preserves sign)
-        return float(np.mean(list(unit_means.values())))
-    return np.nan   # mixed
+    return float(np.mean(bps_vals))
 
 def scenario_direction(score):
-    """Returns 'pos', 'neg', or 'mixed' from a score."""
-    if pd.isna(score): return 'mixed'
+    """Returns 'pos', 'neg', or 'zero' from a score."""
+    if pd.isna(score): return 'zero'   # no valid data → treat as zero/mixed
     if score > 0: return 'pos'
     if score < 0: return 'neg'
-    return 'mixed'
+    return 'zero'
 
 def clean_items(series):
     return sorted([str(i) for i in series.dropna().unique()
@@ -254,13 +255,13 @@ with col_m3:
         <div class="method-icon">?
             <div class="method-popup">
                 <div class="mp-title">📐 How scenario direction is determined</div>
-                <div class="mp-row">For each scenario, all shocks belonging to the selected <b>asset class</b> (or sub-level) are collected.</div>
-                <div class="mp-row">Since shocks use different units (pct, bps, rel%, days), the mean is computed <b>separately per unit type</b> to avoid mixing incompatible scales — then the signs of those means are compared:</div>
-                <div class="mp-row"><span class="mp-green">▲ Positive</span> — all unit-type means are positive, so the net effect on the asset class is positive.</div>
-                <div class="mp-row"><span class="mp-red">▼ Negative</span> — all unit-type means are negative.</div>
-                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit-type means have conflicting signs (e.g. pct shocks average to +5% but bps shocks average to −80bps), so no single direction can be assigned. These scenarios are excluded from both Positive and Negative counts. In Multi-Asset mode there is also an explicit <b>Mixed button</b> for scenarios that are positive in one area and negative in another.</div>
+                <div class="mp-row">For each scenario, all shocks belonging to the selected <b>asset class</b> (or sub-level) are collected and converted to a <b>common unit (bps)</b>: pct × 100 = bps, rel% × 100 = bps. Days are excluded as they represent a time horizon, not a stress direction.</div>
+                <div class="mp-row">The <b>arithmetic mean</b> of all converted values is then computed:</div>
+                <div class="mp-row"><span class="mp-green">▲ Positive</span> — the mean is greater than zero: the scenario represents a net positive shock on this asset class.</div>
+                <div class="mp-row"><span class="mp-red">▼ Negative</span> — the mean is less than zero: net negative shock.</div>
+                <div class="mp-row"><span class="mp-amber">~ Zero / Mixed</span> — the mean is exactly zero (symmetric shocks that cancel out). Only shown when present. In Multi-Asset mode, also includes scenarios positive in one area and negative in another.</div>
                 <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
-                Direction re-evaluates as you drill down: at L2 it uses only that L2's shocks, at L3 only that L3's shocks.</div>
+                Direction re-evaluates as you drill down: at L2 only that L2's shocks are used, at L3 only that L3's shocks.</div>
             </div>
         </div>
         <span class="method-label">Direction methodology</span>
@@ -309,21 +310,20 @@ components.html("""
 # ─── DIRECTION COUNTS PER GROUP ───────────────────────────────────────────────
 def count_directions(df_sub, group_cols):
     """
-    For each unique scenario within df_sub, compute direction based on
-    per-unit mean over the given group_cols filter.
-    Returns (n_pos, n_neg, n_mixed).
+    For each unique scenario within df_sub, compute direction.
+    Returns (n_pos, n_neg, n_zero).
     """
-    n_pos, n_neg, n_mixed = 0, 0, 0
+    n_pos, n_neg, n_zero = 0, 0, 0
     for _, sc_df in df_sub.groupby('Scenario'):
         score = group_direction_score(sc_df)
         d = scenario_direction(score)
-        if d == 'pos':   n_pos   += 1
-        elif d == 'neg': n_neg   += 1
-        else:            n_mixed += 1
-    return n_pos, n_neg, n_mixed
+        if d == 'pos':    n_pos  += 1
+        elif d == 'neg':  n_neg  += 1
+        else:             n_zero += 1
+    return n_pos, n_neg, n_zero
 
 def get_scenario_directions(df_sub):
-    """Returns dict {scenario: 'pos'|'neg'|'mixed'} for df_sub."""
+    """Returns dict {scenario: 'pos'|'neg'|'zero'} for df_sub."""
     result = {}
     for sc, sc_df in df_sub.groupby('Scenario'):
         score = group_direction_score(sc_df)
@@ -539,12 +539,17 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
 
 # ─── STAT BOXES (L3 drill) ────────────────────────────────────────────────────
 def render_stat_boxes(df_sub):
-    """Show total scenarios + filter buttons for L3 drill-down view."""
-    n_sc                = df_sub['Scenario'].nunique()
-    n_pos, n_neg, _     = count_directions(df_sub, 'L3')
-    cur_filter          = st.session_state.shock_filter
+    """Show total scenarios + filter buttons. Zero/mixed button only if n_zero > 0."""
+    n_sc                    = df_sub['Scenario'].nunique()
+    n_pos, n_neg, n_zero    = count_directions(df_sub, 'L3')
+    cur_filter              = st.session_state.shock_filter
 
-    c0, c1, c2, c3 = st.columns([1.4, 1.4, 1.4, 7])
+    # Dynamic columns: add zero column only if needed
+    if n_zero > 0:
+        c0, c1, c2, c3, _ = st.columns([1.2, 1.2, 1.2, 1.2, 5])
+    else:
+        c0, c1, c2, _ = st.columns([1.4, 1.4, 1.4, 7])
+
     with c0:
         st.markdown(f"""<div class="stat-box">
             <div class="sv">{n_sc}</div>
@@ -566,6 +571,15 @@ def render_stat_boxes(df_sub):
         if active_neg:
             st.markdown('<div style="height:3px;background:#dc2626;border-radius:2px;margin-top:-6px;"></div>',
                         unsafe_allow_html=True)
+    if n_zero > 0:
+        with c3:
+            active_zero = cur_filter == 'zero'
+            if st.button(f"~ {n_zero}  zero", key="filter_zero", use_container_width=True):
+                st.session_state.shock_filter = 'all' if active_zero else 'zero'
+                st.rerun()
+            if active_zero:
+                st.markdown('<div style="height:3px;background:#b45309;border-radius:2px;margin-top:-6px;"></div>',
+                            unsafe_allow_html=True)
 
 # ─── SCENARIO TABLE (L3 drill) ────────────────────────────────────────────────
 def render_scenario_table(df_sub):
@@ -584,6 +598,9 @@ def render_scenario_table(df_sub):
     elif f == 'neg':
         matching = [sc for sc, d in sc_dirs.items() if d == 'neg']
         th_class, direction = "neg-th", "neg"
+    elif f == 'zero':
+        matching = [sc for sc, d in sc_dirs.items() if d == 'zero']
+        th_class, direction = "mix-th", "zero"
     else:
         matching  = list(sc_dirs.keys())
         th_class, direction = "", "all"
@@ -756,10 +773,11 @@ else:
                         if all(dir_matrix.get(sc, {}).get(l1) == direction
                                for l1 in selected_list)]
 
-            pos_scenarios   = filter_by_direction('pos')
-            neg_scenarios   = filter_by_direction('neg')
-            mixed_scenarios = [sc for sc in all_scenarios
-                               if sc not in pos_scenarios and sc not in neg_scenarios]
+            pos_scenarios  = filter_by_direction('pos')
+            neg_scenarios  = filter_by_direction('neg')
+            zero_scenarios = [sc for sc in all_scenarios
+                              if sc not in pos_scenarios and sc not in neg_scenarios]
+            has_zero       = len(zero_scenarios) > 0
 
             cur_mf = st.session_state.shock_filter
 
@@ -787,9 +805,9 @@ else:
             """
 
             tips = {
-                'pos': "Scenarios with a <b>positive net shock</b> across all selected asset classes (avg per unit type is positive in each area).",
-                'neg': "Scenarios with a <b>negative net shock</b> across all selected asset classes (avg per unit type is negative in each area).",
-                'mix': "Scenarios whose shock direction <b>differs across the selected areas</b> — e.g. positive in Equity but negative in FX. They appear here because they are common to all areas, but do not have a single direction.",
+                'pos': "Scenarios whose average shock (converted to bps) is <b>positive in all selected asset classes</b>.",
+                'neg': "Scenarios whose average shock (converted to bps) is <b>negative in all selected asset classes</b>.",
+                'zer': "Scenarios that don't have a single direction across all selected areas — either their mean shock is exactly zero, or they are positive in one area and negative in another.",
             }
 
             def tip_icon(key):
@@ -799,7 +817,11 @@ else:
 
             st.markdown(tooltip_css, unsafe_allow_html=True)
 
-            cfa, cfb, cfc, cfd, _ = st.columns([1.1, 1.3, 1.3, 1.3, 3])
+            if has_zero:
+                cfa, cfb, cfc, cfd, _ = st.columns([1.1, 1.3, 1.3, 1.3, 3])
+            else:
+                cfa, cfb, cfc, _ = st.columns([1.2, 1.4, 1.4, 5])
+
             with cfa:
                 st.markdown(f"""<div class="stat-box">
                     <div class="sv">{len(all_scenarios)}</div>
@@ -833,20 +855,21 @@ else:
                 if active_neg:
                     st.markdown('<div style="height:3px;background:#dc2626;border-radius:2px;margin-top:-6px;"></div>',
                                 unsafe_allow_html=True)
-            with cfd:
-                active_mix = cur_mf == 'mix'
-                st.markdown(
-                    f'<div style="font-size:0.68rem;color:#b45309;font-weight:600;margin-bottom:2px;">'
-                    f'~ Mixed {tip_icon("mix")}</div>',
-                    unsafe_allow_html=True
-                )
-                if st.button(f"~ {len(mixed_scenarios)}  mixed",
-                             key="mf_mix", use_container_width=True):
-                    st.session_state.shock_filter = 'all' if active_mix else 'mix'
-                    st.rerun()
-                if active_mix:
-                    st.markdown('<div style="height:3px;background:#b45309;border-radius:2px;margin-top:-6px;"></div>',
-                                unsafe_allow_html=True)
+            if has_zero:
+                with cfd:
+                    active_zero = cur_mf == 'zero'
+                    st.markdown(
+                        f'<div style="font-size:0.68rem;color:#b45309;font-weight:600;margin-bottom:2px;">'
+                        f'~ Zero / Mixed {tip_icon("zer")}</div>',
+                        unsafe_allow_html=True
+                    )
+                    if st.button(f"~ {len(zero_scenarios)}  zero/mixed",
+                                 key="mf_zero", use_container_width=True):
+                        st.session_state.shock_filter = 'all' if active_zero else 'zero'
+                        st.rerun()
+                    if active_zero:
+                        st.markdown('<div style="height:3px;background:#b45309;border-radius:2px;margin-top:-6px;"></div>',
+                                    unsafe_allow_html=True)
 
             # Apply filter
             if cur_mf == 'pos':
@@ -855,9 +878,9 @@ else:
             elif cur_mf == 'neg':
                 active_scenarios = neg_scenarios
                 th_class, sign_filter = "neg-th", "neg"
-            elif cur_mf == 'mix':
-                active_scenarios = mixed_scenarios
-                th_class, sign_filter = "mix-th", "mix"
+            elif cur_mf == 'zero':
+                active_scenarios = zero_scenarios
+                th_class, sign_filter = "mix-th", "zero"
             else:
                 active_scenarios = all_scenarios
                 th_class, sign_filter = "", "all"
