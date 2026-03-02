@@ -219,6 +219,55 @@ with col_m2:
         st.session_state.update({'mode': 'multi', 'sel_l2': None, 'sel_l3': None,
                                   'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None})
         st.rerun()
+with col_m3:
+    st.markdown("""
+    <style>
+    .method-tip { display:inline-flex; align-items:center; gap:7px; margin-top:6px; }
+    .method-icon {
+        display:inline-flex; align-items:center; justify-content:center;
+        width:20px; height:20px; border-radius:50%;
+        background:#f3f4f6; border:1px solid #d1d5db;
+        color:#6b7280; font-size:0.72rem; font-weight:700;
+        cursor:default; flex-shrink:0; position:relative;
+    }
+    .method-label { font-size:0.72rem; color:#9ca3af; }
+    .method-icon:hover .method-popup { display:block; }
+    .method-popup {
+        display:none; position:absolute; left:26px; top:-8px;
+        background:#1f2937; color:#f9fafb;
+        font-size:0.70rem; line-height:1.6;
+        padding:10px 13px; border-radius:8px;
+        width:310px; z-index:9999;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    .method-popup b { color:#ffffff; }
+    .method-popup .mp-title {
+        font-size:0.72rem; font-weight:700; color:#e5e7eb;
+        border-bottom:1px solid #374151; padding-bottom:5px; margin-bottom:7px;
+    }
+    .mp-row { margin-bottom:5px; }
+    .mp-green { color:#4ade80; font-weight:600; }
+    .mp-red   { color:#f87171; font-weight:600; }
+    .mp-amber { color:#fbbf24; font-weight:600; }
+    </style>
+    <div class="method-tip">
+        <div class="method-icon">?
+            <div class="method-popup">
+                <div class="mp-title">📐 How scenario direction is determined</div>
+                <div class="mp-row">For each scenario, shocks are grouped by <b>unit type</b>
+                (pct, bps, rel%, days) and the <b>arithmetic mean</b> is computed per unit.</div>
+                <div class="mp-row">If all unit-type means agree in sign → the scenario
+                gets that direction:</div>
+                <div class="mp-row"><span class="mp-green">▲ Positive</span> — average net shock is positive across all unit types present.</div>
+                <div class="mp-row"><span class="mp-red">▼ Negative</span> — average net shock is negative across all unit types.</div>
+                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit types disagree in sign (e.g. pct is positive but bps is negative), or the scenario spans multiple asset classes with opposing directions.</div>
+                <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
+                The direction re-evaluates as you drill down: at L2 it uses only L2 shocks, at L3 only L3 shocks.</div>
+            </div>
+        </div>
+        <span class="method-label">Direction methodology</span>
+    </div>
+    """, unsafe_allow_html=True)
 st.markdown("---")
 
 # ─── JS: color Positive/Negative buttons ──────────────────────────────────────
