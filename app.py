@@ -259,7 +259,7 @@ with col_m3:
                 <div class="mp-row">The <b>arithmetic mean</b> of all converted values is then computed:</div>
                 <div class="mp-row"><span class="mp-green">▲ Positive</span> — the mean is greater than zero: the scenario represents a net positive shock on this asset class.</div>
                 <div class="mp-row"><span class="mp-red">▼ Negative</span> — the mean is less than zero: net negative shock.</div>
-                <div class="mp-row"><span class="mp-amber">~ Zero / Mixed</span> — the mean is exactly zero (symmetric shocks that cancel out). Only shown when present. In Multi-Asset mode, also includes scenarios positive in one area and negative in another.</div>
+                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — the mean is exactly zero (symmetric shocks that cancel each other out, e.g. +20bps and −20bps). Only shown when present. In Multi-Asset mode, also includes scenarios that are positive in one selected area and negative in another.</div>
                 <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
                 Direction re-evaluates as you drill down: at L2 only that L2's shocks are used, at L3 only that L3's shocks.</div>
             </div>
@@ -574,7 +574,19 @@ def render_stat_boxes(df_sub):
     if n_zero > 0:
         with c3:
             active_zero = cur_filter == 'zero'
-            if st.button(f"~ {n_zero}  zero", key="filter_zero", use_container_width=True):
+            # Inline tooltip label above button
+            st.markdown(
+                '<div style="font-size:0.68rem;color:#b45309;font-weight:600;margin-bottom:2px;">'
+                '~ Mixed '
+                '<span style="display:inline-flex;align-items:center;justify-content:center;'
+                'width:14px;height:14px;border-radius:50%;background:#e5e7eb;color:#6b7280;'
+                'font-size:0.6rem;font-weight:700;cursor:default;position:relative;'
+                'vertical-align:middle;" '
+                'title="Scenarios with a mean shock of exactly zero — i.e. positive and negative shocks cancel each other out (e.g. +20bps and −20bps). Only shown when present.">'
+                '?</span></div>',
+                unsafe_allow_html=True
+            )
+            if st.button(f"~ {n_zero}  Mixed", key="filter_zero", use_container_width=True):
                 st.session_state.shock_filter = 'all' if active_zero else 'zero'
                 st.rerun()
             if active_zero:
@@ -807,7 +819,7 @@ else:
             tips = {
                 'pos': "Scenarios whose average shock (converted to bps) is <b>positive in all selected asset classes</b>.",
                 'neg': "Scenarios whose average shock (converted to bps) is <b>negative in all selected asset classes</b>.",
-                'zer': "Scenarios that don't have a single direction across all selected areas — either their mean shock is exactly zero, or they are positive in one area and negative in another.",
+                'zer': "Scenarios with no clear single direction: either their mean shock is exactly zero (symmetric shocks cancel out), or they are positive in one selected area and negative in another.",
             }
 
             def tip_icon(key):
@@ -860,10 +872,10 @@ else:
                     active_zero = cur_mf == 'zero'
                     st.markdown(
                         f'<div style="font-size:0.68rem;color:#b45309;font-weight:600;margin-bottom:2px;">'
-                        f'~ Zero / Mixed {tip_icon("zer")}</div>',
+                        f'~ Mixed {tip_icon("zer")}</div>',
                         unsafe_allow_html=True
                     )
-                    if st.button(f"~ {len(zero_scenarios)}  zero/mixed",
+                    if st.button(f"~ {len(zero_scenarios)}  Mixed",
                                  key="mf_zero", use_container_width=True):
                         st.session_state.shock_filter = 'all' if active_zero else 'zero'
                         st.rerun()
