@@ -555,9 +555,20 @@ def render_stat_boxes(df_sub):
             <div class="sv">{n_sc}</div>
             <div class="sk">Total Scenarios</div>
         </div>""", unsafe_allow_html=True)
+    tip_style = ('display:inline-flex;align-items:center;justify-content:center;'
+                 'width:14px;height:14px;border-radius:50%;background:#e5e7eb;color:#6b7280;'
+                 'font-size:0.6rem;font-weight:700;cursor:default;vertical-align:middle;')
+
     with c1:
         active_pos = cur_filter == 'pos'
-        if st.button(f"▲ {n_pos}  positive", key="filter_pos", use_container_width=True):
+        st.markdown(
+            f'<div style="font-size:0.68rem;color:#16a34a;font-weight:600;margin-bottom:2px;">'
+            f'▲ Positive '
+            f'<span style="{tip_style}" title="Scenarios whose average shock (converted to bps) is positive: net upward stress on this asset class.">?</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        if st.button(f"▲ {n_pos}  Positive", key="filter_pos", use_container_width=True):
             st.session_state.shock_filter = 'all' if active_pos else 'pos'
             st.rerun()
         if active_pos:
@@ -565,7 +576,14 @@ def render_stat_boxes(df_sub):
                         unsafe_allow_html=True)
     with c2:
         active_neg = cur_filter == 'neg'
-        if st.button(f"▼ {n_neg}  negative", key="filter_neg", use_container_width=True):
+        st.markdown(
+            f'<div style="font-size:0.68rem;color:#dc2626;font-weight:600;margin-bottom:2px;">'
+            f'▼ Negative '
+            f'<span style="{tip_style}" title="Scenarios whose average shock (converted to bps) is negative: net downward stress on this asset class.">?</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        if st.button(f"▼ {n_neg}  Negative", key="filter_neg", use_container_width=True):
             st.session_state.shock_filter = 'all' if active_neg else 'neg'
             st.rerun()
         if active_neg:
