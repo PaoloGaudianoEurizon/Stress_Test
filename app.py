@@ -258,7 +258,7 @@ with col_m3:
                 <div class="mp-row">Since shocks use different units (pct, bps, rel%, days), the mean is computed <b>separately per unit type</b> to avoid mixing incompatible scales — then the signs of those means are compared:</div>
                 <div class="mp-row"><span class="mp-green">▲ Positive</span> — all unit-type means are positive, so the net effect on the asset class is positive.</div>
                 <div class="mp-row"><span class="mp-red">▼ Negative</span> — all unit-type means are negative.</div>
-                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit-type means have conflicting signs (e.g. pct shocks average to +5% but bps shocks average to −80bps), so no single direction can be assigned. In Multi-Asset mode, also includes scenarios positive in one area and negative in another.</div>
+                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — unit-type means have conflicting signs (e.g. pct shocks average to +5% but bps shocks average to −80bps), so no single direction can be assigned. These scenarios are excluded from both Positive and Negative counts. In Multi-Asset mode there is also an explicit <b>Mixed button</b> for scenarios that are positive in one area and negative in another.</div>
                 <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
                 Direction re-evaluates as you drill down: at L2 it uses only that L2's shocks, at L3 only that L3's shocks.</div>
             </div>
