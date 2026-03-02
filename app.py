@@ -299,7 +299,6 @@ def build_export_bytes(df_sub, label="export"):
             'L2':          str(r.get('L2', '')),
             'L3':          str(r.get('L3', '')),
             'ShockValue':  str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
-            'Unit':        str(r.get('_unit', '')),
         })
     export_df = pd.DataFrame(rows)
     buf = io.BytesIO()
@@ -449,15 +448,25 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
                     if st.button(f"▲ {n_pos}  Positive",
                                  key=f"mini_pos_{on_select_key}_{item}",
                                  use_container_width=True):
-                        st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'pos'}
-                        st.session_state.multi_dir_filter = None
+                        if multi:
+                            # Add area to selection and set direction filter
+                            st.session_state.sel_l1_set.add(item)
+                            st.session_state.shock_filter = 'pos'
+                            st.session_state.quick_view   = None
+                        else:
+                            st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'pos'}
                         st.rerun()
                 with mc2:
                     if st.button(f"▼ {n_neg}  Negative",
                                  key=f"mini_neg_{on_select_key}_{item}",
                                  use_container_width=True):
-                        st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'neg'}
-                        st.session_state.multi_dir_filter = None
+                        if multi:
+                            # Add area to selection and set direction filter
+                            st.session_state.sel_l1_set.add(item)
+                            st.session_state.shock_filter = 'neg'
+                            st.session_state.quick_view   = None
+                        else:
+                            st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'neg'}
                         st.rerun()
 
             if clicked:
@@ -699,15 +708,17 @@ else:
                         if all(dir_matrix.get(sc, {}).get(l1) == direction
                                for l1 in selected_list)]
 
-            pos_scenarios = filter_by_direction('pos')
-            neg_scenarios = filter_by_direction('neg')
+            pos_scenarios   = filter_by_direction('pos')
+            neg_scenarios   = filter_by_direction('neg')
+            mixed_scenarios = [sc for sc in all_scenarios
+                               if sc not in pos_scenarios and sc not in neg_scenarios]
 
             cur_mf = st.session_state.shock_filter
-            cfa, cfb, cfc, _ = st.columns([1.4, 1.4, 1.4, 6])
+            cfa, cfb, cfc, cfd, _ = st.columns([1.2, 1.2, 1.2, 1.2, 4])
             with cfa:
                 st.markdown(f"""<div class="stat-box">
                     <div class="sv">{len(all_scenarios)}</div>
-                    <div class="sk">Total Scenarios</div>
+                    <div class="sk">Total</div>
                 </div>""", unsafe_allow_html=True)
             with cfb:
                 active_pos = cur_mf == 'pos'
@@ -727,6 +738,11 @@ else:
                 if active_neg:
                     st.markdown('<div style="height:3px;background:#dc2626;border-radius:2px;margin-top:-6px;"></div>',
                                 unsafe_allow_html=True)
+            with cfd:
+                st.markdown(f"""<div class="stat-box">
+                    <div class="sv" style="color:#b45309">{len(mixed_scenarios)}</div>
+                    <div class="sk" style="color:#b45309">Mixed direction</div>
+                </div>""", unsafe_allow_html=True)
 
             # Apply filter
             if cur_mf == 'pos':
