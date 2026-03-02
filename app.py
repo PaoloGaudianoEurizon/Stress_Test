@@ -63,6 +63,7 @@ st.markdown("""
 }
 .scenario-table th.pos-th { background: #16a34a; }
 .scenario-table th.neg-th { background: #dc2626; }
+.scenario-table th.mix-th { background: #b45309; }
 .scenario-table td {
     padding: 10px 16px; border-bottom: 1px solid #f0f0f0;
     color: #31333f; vertical-align: top;
@@ -714,14 +715,56 @@ else:
                                if sc not in pos_scenarios and sc not in neg_scenarios]
 
             cur_mf = st.session_state.shock_filter
-            cfa, cfb, cfc, cfd, _ = st.columns([1.2, 1.2, 1.2, 1.2, 4])
+
+            # ── Tooltip HTML ──
+            tooltip_css = """
+            <style>
+            .tip-wrap { display:inline-flex; align-items:center; gap:6px; position:relative; }
+            .tip-icon {
+                display:inline-flex; align-items:center; justify-content:center;
+                width:16px; height:16px; border-radius:50%;
+                background:#e5e7eb; color:#6b7280;
+                font-size:0.65rem; font-weight:700; cursor:default;
+                flex-shrink:0;
+            }
+            .tip-icon:hover .tip-text { display:block; }
+            .tip-text {
+                display:none; position:absolute; left:22px; top:-4px;
+                background:#1f2937; color:#f9fafb;
+                font-size:0.68rem; line-height:1.45;
+                padding:7px 10px; border-radius:6px;
+                width:240px; z-index:9999;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            }
+            </style>
+            """
+
+            tips = {
+                'pos': "Scenarios with a <b>positive net shock</b> across all selected asset classes (avg per unit type is positive in each area).",
+                'neg': "Scenarios with a <b>negative net shock</b> across all selected asset classes (avg per unit type is negative in each area).",
+                'mix': "Scenarios whose shock direction <b>differs across the selected areas</b> — e.g. positive in Equity but negative in FX. They appear here because they are common to all areas, but do not have a single direction.",
+            }
+
+            def tip_icon(key):
+                return (f'<span class="tip-icon">?'
+                        f'<span class="tip-text">{tips[key]}</span>'
+                        f'</span>')
+
+            st.markdown(tooltip_css, unsafe_allow_html=True)
+
+            cfa, cfb, cfc, cfd, _ = st.columns([1.1, 1.3, 1.3, 1.3, 3])
             with cfa:
                 st.markdown(f"""<div class="stat-box">
                     <div class="sv">{len(all_scenarios)}</div>
-                    <div class="sk">Total</div>
+                    <div class="sk">Total common</div>
                 </div>""", unsafe_allow_html=True)
             with cfb:
                 active_pos = cur_mf == 'pos'
+                st.markdown(
+                    f'<div style="font-size:0.68rem;color:#16a34a;font-weight:600;margin-bottom:2px;">'
+                    f'▲ Positive {tip_icon("pos")}</div>',
+                    unsafe_allow_html=True
+                )
                 if st.button(f"▲ {len(pos_scenarios)}  positive",
                              key="mf_pos", use_container_width=True):
                     st.session_state.shock_filter = 'all' if active_pos else 'pos'
@@ -731,6 +774,11 @@ else:
                                 unsafe_allow_html=True)
             with cfc:
                 active_neg = cur_mf == 'neg'
+                st.markdown(
+                    f'<div style="font-size:0.68rem;color:#dc2626;font-weight:600;margin-bottom:2px;">'
+                    f'▼ Negative {tip_icon("neg")}</div>',
+                    unsafe_allow_html=True
+                )
                 if st.button(f"▼ {len(neg_scenarios)}  negative",
                              key="mf_neg", use_container_width=True):
                     st.session_state.shock_filter = 'all' if active_neg else 'neg'
@@ -739,10 +787,19 @@ else:
                     st.markdown('<div style="height:3px;background:#dc2626;border-radius:2px;margin-top:-6px;"></div>',
                                 unsafe_allow_html=True)
             with cfd:
-                st.markdown(f"""<div class="stat-box">
-                    <div class="sv" style="color:#b45309">{len(mixed_scenarios)}</div>
-                    <div class="sk" style="color:#b45309">Mixed direction</div>
-                </div>""", unsafe_allow_html=True)
+                active_mix = cur_mf == 'mix'
+                st.markdown(
+                    f'<div style="font-size:0.68rem;color:#b45309;font-weight:600;margin-bottom:2px;">'
+                    f'~ Mixed {tip_icon("mix")}</div>',
+                    unsafe_allow_html=True
+                )
+                if st.button(f"~ {len(mixed_scenarios)}  mixed",
+                             key="mf_mix", use_container_width=True):
+                    st.session_state.shock_filter = 'all' if active_mix else 'mix'
+                    st.rerun()
+                if active_mix:
+                    st.markdown('<div style="height:3px;background:#b45309;border-radius:2px;margin-top:-6px;"></div>',
+                                unsafe_allow_html=True)
 
             # Apply filter
             if cur_mf == 'pos':
@@ -751,6 +808,9 @@ else:
             elif cur_mf == 'neg':
                 active_scenarios = neg_scenarios
                 th_class, sign_filter = "neg-th", "neg"
+            elif cur_mf == 'mix':
+                active_scenarios = mixed_scenarios
+                th_class, sign_filter = "mix-th", "mix"
             else:
                 active_scenarios = all_scenarios
                 th_class, sign_filter = "", "all"
@@ -760,14 +820,13 @@ else:
             else:
                 df_active = df_show[df_show['Scenario'].isin(active_scenarios)]
 
-                # For multi-area view: group by scenario, list L1→L2→L3 paths
                 # Display: only matching-sign shocks (if filtered); export: full
                 if sign_filter == 'pos':
                     df_display = df_active[df_active['_num'] > 0]
                 elif sign_filter == 'neg':
                     df_display = df_active[df_active['_num'] < 0]
                 else:
-                    df_display = df_active
+                    df_display = df_active  # all or mix: show all shocks
 
                 fname = f"multi_{'_'.join(selected_list)}_{sign_filter}"
                 render_export_row(df_active, df_display, fname)
