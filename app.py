@@ -186,6 +186,32 @@ except FileNotFoundError:
 
 desc_map = dict(zip(dm['Stress_Scenarios'], dm['Long_des']))
 
+# ─── EXPORT ───────────────────────────────────────────────────────────────────
+def build_export_bytes(df_sub, label="export"):
+    """Full export: all rows, all shocks. Columns: Scenario | Description | Detail | L1 | L2 | L3 | ShockValue"""
+    rows = []
+    for _, r in df_sub.sort_values(['Scenario', 'L1', 'L2', 'L3']).iterrows():
+        scenario = str(r['Scenario'])
+        rows.append({
+            'Scenario':    scenario,
+            'Description': desc_map.get(scenario.strip(), ''),
+            'Detail':      str(r.get('ColF', '')),
+            'L1':          str(r.get('L1', '')),
+            'L2':          str(r.get('L2', '')),
+            'L3':          str(r.get('L3', '')),
+            'ShockValue':  str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
+        })
+    export_df = pd.DataFrame(rows)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        export_df.to_excel(writer, index=False, sheet_name='Scenarios')
+        ws = writer.sheets['Scenarios']
+        for col_cells in ws.columns:
+            max_len = max((len(str(c.value or '')) for c in col_cells), default=10)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 60)
+    buf.seek(0)
+    return buf.getvalue()
+
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 defaults = {
     'sel_l1_set':    set(),
@@ -340,35 +366,6 @@ def get_scenario_directions(df_sub):
         score = group_direction_score(sc_df)
         result[sc] = scenario_direction(score)
     return result
-
-# ─── EXPORT ───────────────────────────────────────────────────────────────────
-def build_export_bytes(df_sub, label="export"):
-    """
-    Full export: all rows from df_sub (no shock filtering).
-    Columns: Scenario | Description | Detail (col F) | L1 | L2 | L3 | ShockValue | Unit
-    """
-    rows = []
-    for _, r in df_sub.sort_values(['Scenario', 'L1', 'L2', 'L3']).iterrows():
-        scenario = str(r['Scenario'])
-        rows.append({
-            'Scenario':    scenario,
-            'Description': desc_map.get(scenario.strip(), ''),
-            'Detail':      str(r.get('ColF', '')),
-            'L1':          str(r.get('L1', '')),
-            'L2':          str(r.get('L2', '')),
-            'L3':          str(r.get('L3', '')),
-            'ShockValue':  str(r['ShockValue']) if not pd.isna(r['ShockValue']) else '',
-        })
-    export_df = pd.DataFrame(rows)
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-        export_df.to_excel(writer, index=False, sheet_name='Scenarios')
-        ws = writer.sheets['Scenarios']
-        for col_cells in ws.columns:
-            max_len = max((len(str(c.value or '')) for c in col_cells), default=10)
-            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 60)
-    buf.seek(0)
-    return buf.getvalue()
 
 def render_export_row(df_full, df_display, fname_base):
     """Renders count info + export button. df_full = all rows (for export), df_display = filtered for view."""
