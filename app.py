@@ -431,7 +431,7 @@ st.markdown(f"""
 
 st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 
-render_heatmap_panel()
+_heatmap_placeholder = st.empty()
 col_m1, col_m2, col_m3 = st.columns([2.4, 2.4, 7.2])
 with col_m1:
     if st.button("🔍 Single Asset Class Analysis", use_container_width=True):
@@ -800,6 +800,8 @@ def render_scenario_table(df_sub):
     render_scenario_rows(df_d, df, th_class)
 
 # ══════════════════════════════════════════════════════════════════════════════
+with _heatmap_placeholder.container():
+    render_heatmap_panel()
 # MODE A — SINGLE-ASSET
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.mode == 'drill':
