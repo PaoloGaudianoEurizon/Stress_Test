@@ -208,18 +208,29 @@ st.markdown('<div class="main-title">📊 Stress Test Mapping</div>', unsafe_all
 st.markdown('<div class="subtitle">Asset class drill-down · Shock direction analysis</div>',
             unsafe_allow_html=True)
 
-col_m1, col_m2, col_m3 = st.columns([2, 2, 8])
+col_m1, col_m2, col_m3 = st.columns([2.5, 2.5, 7])
 with col_m1:
-    if st.button("🔍 Single-Asset", use_container_width=True):
+    if st.button("🔍 Single Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'drill', 'sel_l1_set': set(), 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'shock_filter': 'all',
                                   'quick_view': None, 'multi_dir_filter': None})
         st.rerun()
 with col_m2:
-    if st.button("🔀 Multi-Asset", use_container_width=True):
+    if st.button("🔀 Multi Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'multi', 'sel_l2': None, 'sel_l3': None,
                                   'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None})
         st.rerun()
+with col_m3:
+    inner_left, inner_right = st.columns([5, 3])
+    with inner_right:
+        st.download_button(
+            label="⬇ Download All Scenarios",
+            data=build_export_bytes(df),
+            file_name="all_scenarios.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="dl_all",
+            use_container_width=True,
+        )
 with col_m3:
     st.markdown("""
     <style>
@@ -362,11 +373,14 @@ def build_export_bytes(df_sub, label="export"):
 def render_export_row(df_full, df_display, fname_base):
     """Renders count info + export button. df_full = all rows (for export), df_display = filtered for view."""
     n = df_display['Scenario'].nunique()
-    col_info, col_dl, _ = st.columns([2, 1.8, 6])
+    col_info, col_dl, _ = st.columns([2.5, 2, 6])
     with col_info:
         st.markdown(
             f'<div style="font-size:0.72rem;color:#6b6b6b;padding-top:8px;">'
-            f'{"1 scenario found" if n == 1 else f"{n} scenarios found"}</div>',
+            f'{"1 scenario found" if n == 1 else f"{n} scenarios found"}<br>'
+            f'<span style="font-size:0.65rem;color:#9ca3af;font-style:italic;">'
+            f'Export includes all shocks for these scenarios, not just the selected asset class.</span>'
+            f'</div>',
             unsafe_allow_html=True
         )
     with col_dl:
@@ -379,54 +393,111 @@ def render_export_row(df_full, df_display, fname_base):
             use_container_width=True,
         )
 
-# ─── SCENARIO TABLE HTML ──────────────────────────────────────────────────────
+# ─── SCENARIO TABLE HTML (solo per quick-view multi dove non servono bottoni per riga) ──
 def build_grouped_table_html(df_display, th_class=""):
-    """
-    One row per unique Scenario. df_display should already be filtered to the
-    shocks you want to SHOW (pos or neg or all). Export uses the full dataset.
-    """
     rows_html = ""
     th_attr   = f' class="{th_class}"' if th_class else ''
-
     for scenario in sorted(df_display['Scenario'].unique()):
         sc_rows  = df_display[df_display['Scenario'] == scenario].sort_values('L3')
         long_des = desc_map.get(str(scenario).strip(), '')
         des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
-
         factors_html = '<div class="factor-list">'
         for _, r in sc_rows.iterrows():
-            num      = r['_num']
+            num       = r['_num']
             shock_raw = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
-            l3_name  = str(r['L3']) if str(r.get('L3', '')).strip() not in ('', 'nan') else '—'
+            l3_name   = str(r['L3']) if str(r.get('L3', '')).strip() not in ('', 'nan') else '—'
             try:   is_num = not np.isnan(float(num))
             except: is_num = False
-            if is_num and num > 0:
-                val_cls, arrow = "factor-val-pos", "▲ "
-            elif is_num and num < 0:
-                val_cls, arrow = "factor-val-neg", "▼ "
-            else:
-                val_cls, arrow = "factor-val-zero", ""
-            factors_html += (
-                f'<div class="factor-row">'
-                f'<span class="factor-name">{l3_name}</span>'
-                f'<span class="{val_cls}">{arrow}{shock_raw}</span>'
-                f'</div>'
-            )
+            if is_num and num > 0:   val_cls, arrow = "factor-val-pos", "▲ "
+            elif is_num and num < 0: val_cls, arrow = "factor-val-neg", "▼ "
+            else:                    val_cls, arrow = "factor-val-zero", ""
+            factors_html += (f'<div class="factor-row">'
+                             f'<span class="factor-name">{l3_name}</span>'
+                             f'<span class="{val_cls}">{arrow}{shock_raw}</span>'
+                             f'</div>')
         factors_html += '</div>'
         rows_html += f"""
         <tr>
             <td style="width:35%"><strong>{scenario}</strong>{des_html}</td>
             <td>{factors_html}</td>
         </tr>"""
-
     return f"""
     <table class="scenario-table">
-        <thead><tr>
-            <th{th_attr}>Scenario</th>
-            <th{th_attr}>Factors (L3) · Shock Value</th>
-        </tr></thead>
+        <thead><tr><th{th_attr}>Scenario</th><th{th_attr}>Factors (L3) · Shock Value</th></tr></thead>
         <tbody>{rows_html}</tbody>
     </table>"""
+
+# ─── SCENARIO TABLE WITH PER-ROW DOWNLOAD ─────────────────────────────────────
+def render_scenario_rows(df_display, df_all_shocks, th_class="", path_mode=False):
+    """
+    Renders scenario table using Streamlit components so each row can have
+    a per-scenario download button. df_all_shocks = full df (all L1s) for export.
+    path_mode=True shows L1 › L2 › L3 path instead of just L3 name (for multi-area).
+    """
+    th_color = {"pos-th": "#16a34a", "neg-th": "#dc2626",
+                "mix-th": "#b45309"}.get(th_class, "#ff4b4b")
+
+    # Table header
+    st.markdown(f"""
+    <table class="scenario-table" style="margin-bottom:0">
+        <thead><tr>
+            <th class="{th_class}" style="background:{th_color};width:30%">Scenario</th>
+            <th class="{th_class}" style="background:{th_color}">Factors (L3) · Shock Value</th>
+            <th class="{th_class}" style="background:{th_color};width:40px"></th>
+        </tr></thead>
+    </table>""", unsafe_allow_html=True)
+
+    for scenario in sorted(df_display['Scenario'].unique()):
+        sc_rows  = df_display[df_display['Scenario'] == scenario].sort_values('L3')
+        long_des = desc_map.get(str(scenario).strip(), '')
+
+        factors_html = '<div class="factor-list" style="margin-top:0">'
+        for _, r in sc_rows.iterrows():
+            num       = r['_num']
+            shock_raw = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
+            if path_mode:
+                l3_name = " › ".join([str(r[c]) for c in ['L1','L2','L3']
+                                      if str(r.get(c,'')).strip() not in ('','nan')])
+            else:
+                l3_name = str(r['L3']) if str(r.get('L3', '')).strip() not in ('', 'nan') else '—'
+            try:   is_num = not np.isnan(float(num))
+            except: is_num = False
+            if is_num and num > 0:   val_cls, arrow = "factor-val-pos", "▲ "
+            elif is_num and num < 0: val_cls, arrow = "factor-val-neg", "▼ "
+            else:                    val_cls, arrow = "factor-val-zero", ""
+            factors_html += (f'<div class="factor-row">'
+                             f'<span class="factor-name">{l3_name}</span>'
+                             f'<span class="{val_cls}">{arrow}{shock_raw}</span>'
+                             f'</div>')
+        factors_html += '</div>'
+        des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
+
+        col_sc, col_factors, col_dl = st.columns([3, 6, 0.7])
+        with col_sc:
+            st.markdown(
+                f'<div style="padding:8px 12px;border-bottom:1px solid #f0f0f0;'
+                f'border-left:1px solid #e6e6e6;min-height:48px;">'
+                f'<strong>{scenario}</strong>{des_html}</div>',
+                unsafe_allow_html=True
+            )
+        with col_factors:
+            st.markdown(
+                f'<div style="padding:4px 12px;border-bottom:1px solid #f0f0f0;'
+                f'border-left:1px solid #e6e6e6;">{factors_html}</div>',
+                unsafe_allow_html=True
+            )
+        with col_dl:
+            # Export ALL shocks for this scenario across all L1s
+            df_sc_full = df_all_shocks[df_all_shocks['Scenario'] == scenario]
+            st.download_button(
+                label="⬇",
+                data=build_export_bytes(df_sc_full),
+                file_name=f"scenario_{scenario}.xlsx".replace(' ', '_'),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_sc_{scenario}_{th_class}",
+                use_container_width=True,
+                help=f"Download all shocks for {scenario}",
+            )
 
 # ─── QUICK-VIEW ───────────────────────────────────────────────────────────────
 def render_quick_view(df_context, col_name):
@@ -472,7 +543,7 @@ def render_quick_view(df_context, col_name):
         return
 
     render_export_row(df_full_export, df_display, f"scenarios_{item}_{direction}")
-    st.markdown(build_grouped_table_html(df_display, th_class), unsafe_allow_html=True)
+    render_scenario_rows(df_display, df, th_class)
 
 # ─── CARD RENDERER ────────────────────────────────────────────────────────────
 def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_mini=False):
@@ -650,8 +721,8 @@ def render_scenario_table(df_sub):
         df_display = df_matching
 
     fname = f"scenarios_{st.session_state.get('sel_l3','export')}_{direction}"
-    render_export_row(df_matching, df_display, fname)   # export full, display filtered count
-    st.markdown(build_grouped_table_html(df_display, th_class), unsafe_allow_html=True)
+    render_export_row(df_matching, df_display, fname)
+    render_scenario_rows(df_display, df, th_class)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -930,49 +1001,7 @@ else:
 
                 fname = f"multi_{'_'.join(selected_list)}_{sign_filter}"
                 render_export_row(df_active, df_display, fname)
-
-                # Build multi-area table: path = L1 › L2 › L3
-                rows_html = ""
-                for scenario in sorted(df_display['Scenario'].unique()):
-                    sc_rows  = df_display[df_display['Scenario'] == scenario]
-                    long_des = desc_map.get(str(scenario).strip(), '')
-                    des_html = f'<div class="long-des">{long_des}</div>' if long_des else ''
-                    factors_html = '<div class="factor-list">'
-                    for _, r in sc_rows.sort_values(['L1','L2','L3']).iterrows():
-                        num       = r['_num']
-                        shock_raw = str(r['ShockValue']) if not pd.isna(r['ShockValue']) else "—"
-                        path = " › ".join([str(r[c]) for c in ['L1','L2','L3']
-                                           if str(r.get(c, '')).strip() not in ('', 'nan')])
-                        try:   is_num = not np.isnan(float(num))
-                        except: is_num = False
-                        if is_num and num > 0:
-                            val_cls, arrow = "factor-val-pos", "▲ "
-                        elif is_num and num < 0:
-                            val_cls, arrow = "factor-val-neg", "▼ "
-                        else:
-                            val_cls, arrow = "factor-val-zero", ""
-                        factors_html += (
-                            f'<div class="factor-row">'
-                            f'<span class="factor-name">{path}</span>'
-                            f'<span class="{val_cls}">{arrow}{shock_raw}</span>'
-                            f'</div>'
-                        )
-                    factors_html += '</div>'
-                    rows_html += f"""
-                    <tr>
-                        <td style="width:35%"><strong>{scenario}</strong>{des_html}</td>
-                        <td>{factors_html}</td>
-                    </tr>"""
-
-                th_attr = f' class="{th_class}"' if th_class else ''
-                st.markdown(f"""
-                <table class="scenario-table">
-                    <thead><tr>
-                        <th{th_attr}>Scenario</th>
-                        <th{th_attr}>Shocks by selected area</th>
-                    </tr></thead>
-                    <tbody>{rows_html}</tbody>
-                </table>""", unsafe_allow_html=True)
+                render_scenario_rows(df_display, df, th_class, path_mode=True)
 
     else:
         st.markdown(
