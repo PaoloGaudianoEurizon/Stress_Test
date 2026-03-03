@@ -6,7 +6,7 @@ import re
 import io
 
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Stress Test Mapping", layout="wide")
 
 # ─── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
