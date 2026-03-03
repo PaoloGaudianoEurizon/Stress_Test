@@ -431,55 +431,7 @@ st.markdown(f"""
 
 st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 
-# ── L1 heatmap panel ──────────────────────────────────────────────────────────
-_l1_dir_data = []
-for l1, l1_df in df.groupby('L1'):
-    np_, nn_, nz_ = count_directions(l1_df, 'L1')
-    tot_ = np_ + nn_ + nz_
-    _l1_dir_data.append({'l1': l1, 'pos': np_, 'neg': nn_, 'mix': nz_, 'tot': tot_})
-_l1_dir_data.sort(key=lambda x: x['tot'], reverse=True)
-
-_hm_cells = ''
-for d in _l1_dir_data:
-    if d['tot'] == 0: continue
-    pw = int(60 * d['pos'] / d['tot']); nw = int(60 * d['neg'] / d['tot'])
-    mw = 60 - pw - nw
-    neg_pct = int(100 * d['neg'] / d['tot'])
-    color = '#ef4444' if neg_pct > 60 else '#f59e0b' if neg_pct > 40 else '#22c55e'
-    _hm_cells += f"""
-    <div class="hm-cell">
-      <div class="hm-label">{d['l1'][:14]}</div>
-      <svg width="60" height="5" style="border-radius:2px;overflow:hidden;margin:3px 0">
-        <rect x="0" y="0" width="{pw}" height="5" fill="#22c55e" opacity="0.9"/>
-        <rect x="{pw}" y="0" width="{nw}" height="5" fill="#ef4444" opacity="0.9"/>
-        <rect x="{pw+nw}" y="0" width="{mw}" height="5" fill="#f59e0b" opacity="0.7"/>
-      </svg>
-      <div class="hm-count" style="color:{color}">{d['tot']}</div>
-    </div>"""
-
-st.markdown(f"""
-<style>
-.hm-strip {{
-    display:flex; flex-wrap:wrap; gap:6px;
-    background:#080b12; border:1px solid #141e2e; border-radius:8px;
-    padding:10px 16px; margin-bottom:14px;
-}}
-.hm-cell {{
-    display:flex; flex-direction:column; align-items:flex-start;
-    background:#0d1220; border:1px solid #141e2e; border-radius:5px;
-    padding:6px 10px; min-width:90px;
-}}
-.hm-label {{ font-size:0.60rem; color:#4a5568; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; }}
-.hm-count {{ font-family:'JetBrains Mono',monospace; font-size:0.80rem; font-weight:600; line-height:1; }}
-.hm-title {{ font-size:0.58rem; color:#2d3d50; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:7px; display:flex; align-items:center; gap:8px; width:100%; }}
-.hm-title::after {{ content:''; flex:1; height:1px; background:#141e2e; }}
-</style>
-<div class="hm-strip">
-  <div style="width:100%"><div class="hm-title">▸ Scenario distribution by asset class</div></div>
-  {_hm_cells}
-</div>
-""", unsafe_allow_html=True)
-
+render_heatmap_panel()
 col_m1, col_m2, col_m3 = st.columns([2.4, 2.4, 7.2])
 with col_m1:
     if st.button("🔍 Single Asset Class Analysis", use_container_width=True):
@@ -583,6 +535,51 @@ def count_directions(df_sub, _):
 def get_scenario_directions(df_sub):
     return {sc: scenario_direction(group_direction_score(g))
             for sc, g in df_sub.groupby('Scenario')}
+
+def render_heatmap_panel():
+    """Render L1 scenario distribution heatmap — called after count_directions is defined."""
+    l1_dir_data = []
+    for l1, l1_df in df.groupby('L1'):
+        np_, nn_, nz_ = count_directions(l1_df, 'L1')
+        tot_ = np_ + nn_ + nz_
+        l1_dir_data.append({'l1': l1, 'pos': np_, 'neg': nn_, 'mix': nz_, 'tot': tot_})
+    l1_dir_data.sort(key=lambda x: x['tot'], reverse=True)
+    cells = ''
+    for d in l1_dir_data:
+        if d['tot'] == 0: continue
+        pw = int(60 * d['pos'] / d['tot']); nw = int(60 * d['neg'] / d['tot'])
+        mw = 60 - pw - nw
+        neg_pct = int(100 * d['neg'] / d['tot'])
+        color = '#ef4444' if neg_pct > 60 else '#f59e0b' if neg_pct > 40 else '#22c55e'
+        cells += (
+            f'<div class="hm-cell">'
+            f'<div class="hm-label">{d["l1"][:14]}</div>'
+            f'<svg width="60" height="5" style="border-radius:2px;overflow:hidden;margin:3px 0">'
+            f'<rect x="0" y="0" width="{pw}" height="5" fill="#22c55e" opacity="0.9"/>'
+            f'<rect x="{pw}" y="0" width="{nw}" height="5" fill="#ef4444" opacity="0.9"/>'
+            f'<rect x="{pw+nw}" y="0" width="{mw}" height="5" fill="#f59e0b" opacity="0.7"/>'
+            f'</svg>'
+            f'<div class="hm-count" style="color:{color}">{d["tot"]}</div>'
+            f'</div>'
+        )
+    st.markdown(f"""
+<style>
+.hm-strip {{display:flex;flex-wrap:wrap;gap:6px;background:#080b12;border:1px solid #141e2e;
+    border-radius:8px;padding:10px 16px;margin-bottom:14px;}}
+.hm-cell {{display:flex;flex-direction:column;align-items:flex-start;background:#0d1220;
+    border:1px solid #141e2e;border-radius:5px;padding:6px 10px;min-width:90px;}}
+.hm-label {{font-size:0.60rem;color:#4a5568;letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;}}
+.hm-count {{font-family:'JetBrains Mono',monospace;font-size:0.80rem;font-weight:600;line-height:1;}}
+.hm-title {{font-size:0.58rem;color:#2d3d50;text-transform:uppercase;letter-spacing:0.08em;
+    margin-bottom:7px;display:flex;align-items:center;gap:8px;width:100%;}}
+.hm-title::after {{content:'';flex:1;height:1px;background:#141e2e;}}
+</style>
+<div class="hm-strip">
+  <div style="width:100%"><div class="hm-title">&#9658; Scenario distribution by asset class</div></div>
+  {cells}
+</div>
+""", unsafe_allow_html=True)
+
 
 # ─── EXPORT ROW ────────────────────────────────────────────────────────────────
 def render_export_row(df_full, df_display, fname_base):
