@@ -6,7 +6,7 @@ import re
 import io
 
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Stress Test Mapping", layout="wide")
+st.set_page_config(page_title="Stress Test Mapping", page_icon="📊", layout="wide")
 
 # ─── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -398,6 +398,9 @@ components.html("""
 # ─── EXPORT ROW ───────────────────────────────────────────────────────────────
 def render_export_row(df_full, df_display, fname_base):
     n = df_display['Scenario'].nunique()
+    # Always export ALL shocks for these scenarios from the global df
+    scenarios_to_export = df_display['Scenario'].unique()
+    df_export = df[df['Scenario'].isin(scenarios_to_export)]
     col_info, col_dl, _ = st.columns([2.5, 2, 6])
     with col_info:
         st.markdown(
@@ -411,7 +414,7 @@ def render_export_row(df_full, df_display, fname_base):
     with col_dl:
         st.download_button(
             label="⬇ Export Excel",
-            data=build_export_bytes(df_full),
+            data=build_export_bytes(df_export),
             file_name=f"{fname_base}.xlsx".replace(' ', '_'),
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"dl_{fname_base}_{id(df_display)}",
