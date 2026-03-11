@@ -604,11 +604,18 @@ def render_scenario_rows(df_display, df_all_shocks, th_class="", path_mode=False
             unit = r['Unit'] if not pd.isna(r['Unit']) else ''
             shock_str = format_shock(val, unit)
 
+            _fc = str(r.get('Factor', '')).strip()
+            _factor_suffix = (
+                f' <span style="color:#9ca3af;font-size:0.72rem;font-weight:400;">· {_fc}</span>'
+                if _fc not in ('', 'nan') else ''
+            )
             if path_mode:
-                factor_label = " › ".join([str(r[c]) for c in ['L1', 'L2', 'L3']
-                                           if str(r.get(c, '')).strip() not in ('', 'nan')])
+                _path = " › ".join([str(r[c]) for c in ['L1', 'L2', 'L3']
+                                    if str(r.get(c, '')).strip() not in ('', 'nan')])
+                factor_label = _path + _factor_suffix
             else:
-                factor_label = str(r['L3']) if str(r.get('L3', '')).strip() not in ('', 'nan') else '—'
+                _l3 = str(r['L3']) if str(r.get('L3', '')).strip() not in ('', 'nan') else '—'
+                factor_label = _l3 + _factor_suffix
 
             try:
                 is_num = not pd.isna(val)
