@@ -542,6 +542,16 @@ components.html("""
                 btn.style.setProperty('height', '28px', 'important');
                 btn.style.setProperty('padding', '0 8px', 'important');
                 btn.style.setProperty('border-radius', '5px', 'important');
+            } else if (txt.includes('Mixed')) {
+                btn.style.setProperty('background-color', '#b45309', 'important');
+                btn.style.setProperty('color', '#ffffff', 'important');
+                btn.style.setProperty('border', '1.5px solid #92400e', 'important');
+                btn.style.setProperty('font-size', '0.72rem', 'important');
+                btn.style.setProperty('font-weight', '600', 'important');
+                btn.style.setProperty('min-height', '28px', 'important');
+                btn.style.setProperty('height', '28px', 'important');
+                btn.style.setProperty('padding', '0 8px', 'important');
+                btn.style.setProperty('border-radius', '5px', 'important');
             }
         });
     }
@@ -733,17 +743,6 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
                             st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'pos'}
                         st.rerun()
                 with mc2:
-                    if st.button(f"▼ {n_neg}  Negative",
-                                 key=f"mini_neg_{on_select_key}_{item}",
-                                 use_container_width=True):
-                        if multi:
-                            st.session_state.sel_l1_set.add(item)
-                            st.session_state.shock_filter = 'neg'
-                            st.session_state.quick_view   = None
-                        else:
-                            st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'neg'}
-                        st.rerun()
-                with mc3:
                     if st.button(f"~ {n_zero}  Mixed",
                                  key=f"mini_zero_{on_select_key}_{item}",
                                  use_container_width=True):
@@ -753,6 +752,17 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
                             st.session_state.quick_view   = None
                         else:
                             st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'zero'}
+                        st.rerun()
+                with mc3:
+                    if st.button(f"▼ {n_neg}  Negative",
+                                 key=f"mini_neg_{on_select_key}_{item}",
+                                 use_container_width=True):
+                        if multi:
+                            st.session_state.sel_l1_set.add(item)
+                            st.session_state.shock_filter = 'neg'
+                            st.session_state.quick_view   = None
+                        else:
+                            st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'neg'}
                         st.rerun()
             if clicked:
                 st.session_state.quick_view = None
