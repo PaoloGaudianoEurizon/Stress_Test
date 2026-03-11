@@ -122,29 +122,6 @@ st.markdown("""
 .type-brs { background: #dbeafe; color: #1d4ed8; }
 .type-ec  { background: #dcfce7; color: #15803d; }
 
-/* ── Type filter bar ── */
-.type-filter-bar {
-    display: flex; align-items: center; gap: 10px;
-    background: #f8f9fb; border: 1px solid #e6e6e6; border-radius: 8px;
-    padding: 8px 14px; margin-bottom: 1rem;
-}
-.type-filter-label {
-    font-size: 0.65rem; color: #9ca3af; text-transform: uppercase;
-    letter-spacing: 0.08em; white-space: nowrap; margin-right: 4px;
-}
-.type-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 0.72rem; font-weight: 600; padding: 3px 12px;
-    border-radius: 20px; border: 1.5px solid transparent;
-    cursor: pointer; transition: all 0.15s;
-}
-.type-chip-all        { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
-.type-chip-all.active { background: #1f2937; color: #ffffff;  border-color: #1f2937; }
-.type-chip-brs        { background: #eff6ff; color: #1d4ed8;  border-color: #bfdbfe; }
-.type-chip-brs.active { background: #1d4ed8; color: #ffffff;  border-color: #1d4ed8; }
-.type-chip-ec         { background: #f0fdf4; color: #15803d;  border-color: #bbf7d0; }
-.type-chip-ec.active  { background: #15803d; color: #ffffff;  border-color: #15803d; }
-
 /* ── Default buttons ── */
 .stButton > button {
     background: #ffffff; color: #31333f;
@@ -158,22 +135,15 @@ st.markdown("""
 # ─── HELPERS ───────────────────────────────────────────────────────────────────
 
 def to_bps(value, unit):
-    """Converte Value + Unit in bps per il calcolo della direzione.
-    Solo 'bps', 'pct' e 'rel %' entrano nel calcolo.
-    Livelli assoluti (pct/yr, Price, Index Lvl, FX Rate, target) sono esclusi:
-    rappresentano target di livello, non shock direzionali.
-    """
     if pd.isna(value) or pd.isna(unit):
         return np.nan
     unit = str(unit).strip().lower()
     if unit == 'bps':    return float(value)
     if unit == 'pct':    return float(value) * 100
     if unit == 'rel %':  return float(value) * 100
-    # pct/yr, Price, Index Lvl, FX Rate, target → esclusi
     return np.nan
 
 def group_direction_score(sub):
-    """Media bps delle righe di un sottoinsieme (per un singolo scenario)."""
     bps_vals = [to_bps(r['Value'], r['Unit']) for _, r in sub.iterrows()]
     bps_vals = [v for v in bps_vals if not np.isnan(v)]
     return float(np.mean(bps_vals)) if bps_vals else np.nan
@@ -202,7 +172,6 @@ def clean_items(series):
                    if str(i).strip() not in ('', 'nan')])
 
 def format_shock(value, unit):
-    """Formatta valore + unità per la visualizzazione."""
     if pd.isna(value):
         return "—"
     unit = str(unit).strip() if not pd.isna(unit) else ''
@@ -216,19 +185,9 @@ FILE_PATH = "Lista_scenari_shocks.xlsx"
 
 @st.cache_data
 def load_data():
-    # Sheet principale: Shocks
-    # Colonne: Scenario, Scenario Type, Description, Spread Shocks,
-    #          Factor, Value, Unit, Extra, Livello 3, Livello 2, Livello 1
     df = pd.read_excel(FILE_PATH, sheet_name="Shocks")
+    df = df.rename(columns={'Livello 1': 'L1', 'Livello 2': 'L2', 'Livello 3': 'L3'})
 
-    # Rinomina per coerenza interna con L1/L2/L3
-    df = df.rename(columns={
-        'Livello 1': 'L1',
-        'Livello 2': 'L2',
-        'Livello 3': 'L3',
-    })
-
-    # Pulizia
     for col in ['Scenario', 'Scenario Type', 'L1', 'L2', 'L3', 'Factor', 'Unit']:
         df[col] = df[col].astype(str).str.strip()
         df[col] = df[col].replace('nan', np.nan)
@@ -236,36 +195,53 @@ def load_data():
     df = df.dropna(subset=['Scenario', 'L1'])
     df = df[df['L1'].str.strip().astype(bool)]
 
-    # Mappa descrizione scenario (una per scenario)
     desc_map = (
         df.dropna(subset=['Description'])
           .drop_duplicates(subset='Scenario')[['Scenario', 'Description']]
           .set_index('Scenario')['Description']
           .to_dict()
     )
-
-    # Mappa tipo scenario BRS/EC
     type_map = (
         df.drop_duplicates(subset='Scenario')[['Scenario', 'Scenario Type']]
           .set_index('Scenario')['Scenario Type']
           .to_dict()
     )
-
     return df, desc_map, type_map
 
 try:
     df, desc_map, type_map = load_data()
 except FileNotFoundError:
-    st.error(f"File `{FILE_PATH}` not found. Assicurati che il file sia nella stessa cartella dell'app.")
+    st.error(f"File `{FILE_PATH}` not found.")
     st.stop()
 
 # ─── EXPORT ───────────────────────────────────────────────────────────────────
-def build_export_bytes(df_sub):
-    """Esporta il sottoinsieme di shocks in Excel."""
+def build_export_bytes(df_sub, include_all_scenarios=False):
+    """Esporta shocks in Excel.
+    Se include_all_scenarios=True, aggiunge righe vuote per scenari
+    presenti in desc_map/type_map ma senza shocks nel df_sub.
+    """
     cols_out = ['Scenario', 'Scenario Type', 'Description', 'Factor',
                 'Value', 'Unit', 'Extra', 'L3', 'L2', 'L1']
     cols_out = [c for c in cols_out if c in df_sub.columns]
-    export_df = df_sub[cols_out].sort_values(['Scenario', 'L1', 'L2', 'L3']).copy()
+
+    if include_all_scenarios:
+        # Tutti gli scenari noti
+        all_known = set(desc_map.keys()) | set(type_map.keys())
+        present   = set(df_sub['Scenario'].unique())
+        missing   = all_known - present
+        if missing:
+            empty_rows = pd.DataFrame([{
+                'Scenario':      sc,
+                'Scenario Type': type_map.get(sc, ''),
+                'Description':   desc_map.get(sc, ''),
+                'Factor': '', 'Value': np.nan, 'Unit': '',
+                'Extra': '', 'L3': '', 'L2': '', 'L1': '',
+            } for sc in sorted(missing)])
+            df_sub = pd.concat([df_sub, empty_rows], ignore_index=True)
+
+    export_df = df_sub[cols_out].sort_values(
+        ['Scenario', 'L1', 'L2', 'L3'], na_position='last'
+    ).copy()
     export_df = export_df.rename(columns={'L1': 'Livello 1', 'L2': 'Livello 2', 'L3': 'Livello 3'})
 
     buf = io.BytesIO()
@@ -301,7 +277,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Asset class strip: un tile per L1 con conteggio scenari
 _l1_counts = df.groupby('L1')['Scenario'].nunique().sort_values(ascending=False)
 _max_c = max(_l1_counts.values) if len(_l1_counts) else 1
 
@@ -345,7 +320,7 @@ with col_m3:
     with inner_right:
         st.download_button(
             label="⬇ Download All Scenarios",
-            data=build_export_bytes(df),
+            data=build_export_bytes(df, include_all_scenarios=True),
             file_name="all_scenarios.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="dl_all",
@@ -369,7 +344,7 @@ with col_m3:
         background:#1f2937; color:#f9fafb;
         font-size:0.70rem; line-height:1.6;
         padding:10px 13px; border-radius:8px;
-        width:310px; z-index:9999;
+        width:320px; z-index:9999;
         box-shadow: 0 6px 20px rgba(0,0,0,0.3);
     }
     .method-popup b { color:#ffffff; }
@@ -386,11 +361,13 @@ with col_m3:
         <div class="method-icon">?
             <div class="method-popup">
                 <div class="mp-title">📐 How scenario direction is determined</div>
-                <div class="mp-row">For each scenario, all shocks belonging to the selected <b>asset class</b> (or sub-level) are collected and converted to a <b>common unit (bps)</b>: pct × 100 = bps, rel% × 100 = bps. "Target" shocks are excluded as they represent an absolute level, not a direction.</div>
-                <div class="mp-row">The <b>arithmetic mean</b> of all converted values is then computed:</div>
-                <div class="mp-row"><span class="mp-green">▲ Positive</span> — mean greater than zero: net positive shock on this asset class.</div>
-                <div class="mp-row"><span class="mp-red">▼ Negative</span> — mean less than zero: net negative shock.</div>
-                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — mean exactly zero (symmetric shocks that cancel). In Multi-Asset mode also includes scenarios positive in one area and negative in another.</div>
+                <div class="mp-row">For each scenario, all shocks belonging to the selected <b>asset class</b> (or sub-level) are collected and converted to a <b>common unit (bps)</b>:</div>
+                <div class="mp-row">· bps → as-is &nbsp;· pct × 100 &nbsp;· rel% × 100</div>
+                <div class="mp-row"><b>Excluded</b>: pct/yr, Price, Index Level, FX Rate — these are absolute levels, not directional shocks.</div>
+                <div class="mp-row">The <b>arithmetic mean</b> of all converted values is computed:</div>
+                <div class="mp-row"><span class="mp-green">▲ Positive</span> — mean &gt; 0</div>
+                <div class="mp-row"><span class="mp-red">▼ Negative</span> — mean &lt; 0</div>
+                <div class="mp-row"><span class="mp-amber">~ Mixed</span> — mean = 0, or no directional shocks available</div>
                 <div class="mp-row" style="margin-top:8px;color:#9ca3af;font-size:0.65rem;">
                 Direction re-evaluates as you drill down: at L2 only that L2's shocks are used, at L3 only that L3's shocks.</div>
             </div>
@@ -400,50 +377,138 @@ with col_m3:
     """, unsafe_allow_html=True)
 st.markdown("---")
 
-# ─── FILTRO SCENARIO TYPE (BRS / EC / All) ────────────────────────────────────
-_n_brs = int((df['Scenario Type'] == 'BRS').sum() / df.groupby('Scenario')['Scenario Type'].first().eq('BRS').sum()
-             * df['Scenario'].nunique()) if df['Scenario'].nunique() else 0
-_sc_brs = df[df['Scenario Type'] == 'BRS']['Scenario'].nunique()
-_sc_ec  = df[df['Scenario Type'] == 'EC']['Scenario'].nunique()
-_sc_all = df['Scenario'].nunique()
-
+# ─── FILTRO SCENARIO TYPE — chip visivi + bottoni Streamlit overlay invisibili ─
+_sc_brs   = df[df['Scenario Type'] == 'BRS']['Scenario'].nunique()
+_sc_ec    = df[df['Scenario Type'] == 'EC']['Scenario'].nunique()
+_sc_all   = df['Scenario'].nunique()
 _cur_type = st.session_state.scenario_type
 
-_col_type, _col_spacer = st.columns([5, 7])
-with _col_type:
-    _t_all = "active" if _cur_type == "All" else ""
-    _t_brs = "active" if _cur_type == "BRS" else ""
-    _t_ec  = "active" if _cur_type == "EC"  else ""
-    st.markdown(f"""
-    <div class="type-filter-bar">
-      <span class="type-filter-label">Scenario type</span>
-      <span class="type-chip type-chip-all {_t_all}">All &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_all})</span></span>
-      <span class="type-chip type-chip-brs {_t_brs}">BRS &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_brs})</span></span>
-      <span class="type-chip type-chip-ec  {_t_ec}">EC &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_ec})</span></span>
-    </div>
-    """, unsafe_allow_html=True)
+def _chip_cls(kind, active):
+    return f"chip-visual chip-{kind}" + (" chip-active" if active else "")
 
-_type_cols = st.columns(3)
-with _type_cols[0]:
-    if st.button(f"All  ({_sc_all})", key="tf_all", use_container_width=True):
+# CSS: rende i bottoni Streamlit nelle colonne chip completamente trasparenti
+# e li sovrappone esattamente al chip visivo sottostante.
+st.markdown("""
+<style>
+/* Wrapper colonna chip: position relative per consentire overlay assoluto */
+.chip-col-wrap { position: relative; display: inline-block; }
+
+/* Il chip HTML visivo — non intercetta click */
+.chip-visual { pointer-events: none; display: inline-flex; align-items: center;
+    gap: 5px; font-size: 0.72rem; font-weight: 600; padding: 5px 16px;
+    border-radius: 20px; border: 1.5px solid transparent; white-space: nowrap;
+    user-select: none; }
+.chip-all  { background:#f3f4f6; color:#374151; border-color:#d1d5db; }
+.chip-brs  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.chip-ec   { background:#f0fdf4; color:#15803d; border-color:#bbf7d0; }
+.chip-all.chip-active  { background:#1f2937; color:#fff;    border-color:#1f2937; }
+.chip-brs.chip-active  { background:#1d4ed8; color:#fff;    border-color:#1d4ed8; }
+.chip-ec.chip-active   { background:#15803d; color:#fff;    border-color:#15803d; }
+
+/* Bottoni Streamlit nelle tre colonne chip: trasparenti, coprono tutto lo spazio */
+div[data-testid="column"]:has(> div > div > div > button[kind="secondary"].chip-overlay-btn) button,
+.chip-overlay-col button {
+    opacity: 0 !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    cursor: pointer !important;
+    z-index: 10 !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Contenitore flex per chip + bottone sovrapposto */
+.chip-slot {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+}
+.chip-slot button {
+    position: absolute !important;
+    inset: 0 !important;
+    opacity: 0 !important;
+    cursor: pointer !important;
+    z-index: 5 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Chip bar visiva (HTML puro, pointer-events:none)
+st.markdown(f"""
+<div style="display:flex;align-items:center;gap:8px;background:#f8f9fb;
+            border:1px solid #e6e6e6;border-radius:8px;padding:7px 14px;
+            margin-bottom:0.6rem;">
+  <span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;
+               letter-spacing:0.08em;white-space:nowrap;margin-right:4px;">Scenario type</span>
+  <span class="{_chip_cls('all', _cur_type=='All')}">All
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_all})</span></span>
+  <span class="{_chip_cls('brs', _cur_type=='BRS')}">BRS
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_brs})</span></span>
+  <span class="{_chip_cls('ec',  _cur_type=='EC')}">EC
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_ec})</span></span>
+</div>
+""", unsafe_allow_html=True)
+
+# Bottoni Streamlit invisibili sovrapposti — stessa larghezza dei chip tramite colonne strette
+# Usiamo CSS per azzerare completamente la loro visibilità.
+st.markdown("""
+<style>
+/* Selettore specifico per i tre bottoni chip: rende tutto trasparente */
+div[data-testid="stHorizontalBlock"]:has(button[data-testid="baseButton-secondary"]) {
+    margin-top: -2.15rem !important;   /* risale sopra la chip bar */
+    height: 2.1rem !important;
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 20 !important;
+}
+/* I singoli bottoni nelle colonne overlay */
+div[data-testid="stHorizontalBlock"]:has(button[data-testid="baseButton-secondary"])
+  button[data-testid="baseButton-secondary"] {
+    opacity: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    width: 100% !important;
+    height: 2.1rem !important;
+    padding: 0 !important;
+    position: relative !important;
+    z-index: 20 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# I bottoni reali Streamlit che catturano il click — completamente invisibili grazie al CSS sopra
+_tc1, _tc2, _tc3, _tc_spacer = st.columns([1, 1, 1, 9])
+with _tc1:
+    if st.button(f"All", key="tf_all", use_container_width=True):
         st.session_state.update({'scenario_type': 'All', 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
                                   'shock_filter': 'all', 'quick_view': None})
         st.rerun()
-with _type_cols[1]:
-    if st.button(f"BRS  ({_sc_brs})", key="tf_brs", use_container_width=True):
+with _tc2:
+    if st.button(f"BRS", key="tf_brs", use_container_width=True):
         st.session_state.update({'scenario_type': 'BRS', 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
                                   'shock_filter': 'all', 'quick_view': None})
         st.rerun()
-with _type_cols[2]:
-    if st.button(f"EC  ({_sc_ec})", key="tf_ec", use_container_width=True):
+with _tc3:
+    if st.button(f"EC", key="tf_ec", use_container_width=True):
         st.session_state.update({'scenario_type': 'EC', 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
                                   'shock_filter': 'all', 'quick_view': None})
         st.rerun()
 
-# Applica filtro tipo su df (da qui in poi df è già filtrato)
+# Applica filtro tipo su df
 _type_sel = st.session_state.scenario_type
 if _type_sel in ('BRS', 'EC'):
     df = df[df['Scenario Type'] == _type_sel]
@@ -773,7 +838,6 @@ def render_scenario_table(df_sub):
 
     df_matching = df_sub[df_sub['Scenario'].isin(matching)]
 
-    # Per la visualizzazione, mostra solo i fattori con il segno del filtro attivo
     if f == 'pos':
         df_display = df_matching[df_matching['Value'].notna() & (df_matching['Value'] > 0)]
     elif f == 'neg':
@@ -792,7 +856,6 @@ def render_scenario_table(df_sub):
 if st.session_state.mode == 'drill':
     qv = st.session_state.quick_view
 
-    # Breadcrumb
     parts = ['<span>All</span>']
     if st.session_state.sel_l1_single:
         parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l1_single}</span>')
@@ -802,7 +865,6 @@ if st.session_state.mode == 'drill':
         parts.append(f'<span class="sep">/</span><span>{st.session_state.sel_l3}</span>')
     st.markdown(f'<div class="breadcrumb">{"".join(parts)}</div>', unsafe_allow_html=True)
 
-    # L1
     st.markdown('<div class="section-header">Level 1 Mapping — Asset Class</div>', unsafe_allow_html=True)
     render_cards(clean_items(df['L1']), df, 'L1', 'sel_l1_single', multi=False, show_mini=True)
 
@@ -909,7 +971,6 @@ else:
             st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
             all_scenarios = sorted(df_show['Scenario'].unique())
 
-            # Matrice direzioni per scenario × L1
             dir_matrix = {}
             for l1 in selected_list:
                 sub_l1 = df_show[df_show['L1'] == l1]
