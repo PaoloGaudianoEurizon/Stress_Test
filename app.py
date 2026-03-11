@@ -213,6 +213,70 @@ try:
 except FileNotFoundError:
     st.error(f"File `{FILE_PATH}` not found.")
     st.stop()
+# ─── GEO DATA ─────────────────────────────────────────────────────────────────
+@st.cache_data
+def load_geo_data():
+    pivot = pd.read_excel(FILE_PATH, sheet_name="Pivot", index_col=0)
+    COUNTRY_MAP = {
+        "Argentina": ("ARG", "Argentina"),
+        "Brazil": ("BRA", "Brazil"), "Brazil Bovespa": ("BRA", "Brazil"),
+        "Canada": ("CAN", "Canada"),
+        "China Shanghai SECmp": ("CHN", "China"), "China Shenzhen SEAll": ("CHN", "China"),
+        "China Domestic": ("CHN", "China"), "China Offshore": ("CHN", "China"),
+        "Denmark OMX Copenhag20": ("DNK", "Denmark"),
+        "France CAC 40": ("FRA", "France"), "EU Corp France": ("FRA", "France"),
+        "Greece ASE/General": ("GRC", "Greece"),
+        "Hungary": ("HUN", "Hungary"), "Hungary BUX": ("HUN", "Hungary"),
+        "India BSE 100": ("IND", "India"),
+        "Indonesia": ("IDN", "Indonesia"),
+        "Ireland ISEQ/General": ("IRL", "Ireland"),
+        "Italy S&P MIB": ("ITA", "Italy"), "Italy RE": ("ITA", "Italy"),
+        "EU Corp Italy": ("ITA", "Italy"),
+        "Korea KOSPI Comp": ("KOR", "South Korea"),
+        "Luxembourg LUXX": ("LUX", "Luxembourg"),
+        "Mexico": ("MEX", "Mexico"),
+        "Netherlands AEX Stk": ("NLD", "Netherlands"),
+        "Pakistan": ("PAK", "Pakistan"), "Pakistan KSE 100": ("PAK", "Pakistan"),
+        "Philippines PSEi": ("PHL", "Philippines"),
+        "Poland WIG": ("POL", "Poland"),
+        "Portugal PSI 20": ("PRT", "Portugal"),
+        "Qatar": ("QAT", "Qatar"),
+        "Russia": ("RUS", "Russia"), "Russia RTS": ("RUS", "Russia"),
+        "Saudi Arabia": ("SAU", "Saudi Arabia"),
+        "Singapore StraitsTms": ("SGP", "Singapore"),
+        "South Africa": ("ZAF", "South Africa"),
+        "Spain IBEX 35": ("ESP", "Spain"),
+        "Sweden OMX": ("SWE", "Sweden"),
+        "Switzerland SMI": ("CHE", "Switzerland"),
+        "Taiwan": ("TWN", "Taiwan"), "Taiwan TSEC": ("TWN", "Taiwan"),
+        "Taiwan TWSE": ("TWN", "Taiwan"),
+        "Turkey": ("TUR", "Turkey"), "Turkey ISE Natl 100": ("TUR", "Turkey"),
+        "Ukraine": ("UKR", "Ukraine"),
+        "United Kingdom": ("GBR", "United Kingdom"),
+        "Venezuela": ("VEN", "Venezuela"),
+        "Viet Nam": ("VNM", "Vietnam"),
+        "Austria ATX": ("AUT", "Austria"),
+        "Belgium 20": ("BEL", "Belgium"),
+        "EU Corp Germany": ("DEU", "Germany"),
+    }
+    rows = []
+    for scenario in pivot.index:
+        row = pivot.loc[scenario]
+        seen_iso = set()
+        for col, (iso3, country_name) in COUNTRY_MAP.items():
+            if col in row.index and pd.notna(row[col]) and iso3 not in seen_iso:
+                rows.append({"Scenario": scenario, "ISO3": iso3,
+                             "Country": country_name, "Value": row[col]})
+                seen_iso.add(iso3)
+    return pd.DataFrame(rows)
+
+try:
+    geo_df = load_geo_data()
+    GEO_AVAILABLE = not geo_df.empty
+except Exception:
+    geo_df = pd.DataFrame()
+    GEO_AVAILABLE = False
+
 
 # ─── EXPORT ───────────────────────────────────────────────────────────────────
 def build_export_bytes(df_sub, include_all_scenarios=False):
@@ -258,7 +322,7 @@ def build_export_bytes(df_sub, include_all_scenarios=False):
 for k, v in {
     'sel_l1_set': set(), 'sel_l1_single': None, 'sel_l2': None, 'sel_l3': None,
     'mode': 'drill', 'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None,
-    'scenario_type': 'All',
+    'scenario_type': 'All', 'geo_country': None,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -303,19 +367,23 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Mode buttons + download all
-col_m1, col_m2, col_m3 = st.columns([2.5, 2.5, 7])
+col_m1, col_m2, col_m3, col_m4 = st.columns([2, 2, 2, 6])
 with col_m1:
     if st.button("🔍 Single Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'drill', 'sel_l1_set': set(), 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'shock_filter': 'all',
-                                  'quick_view': None, 'multi_dir_filter': None})
+                                  'quick_view': None, 'multi_dir_filter': None, 'geo_country': None})
         st.rerun()
 with col_m2:
     if st.button("🔀 Multi Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'multi', 'sel_l2': None, 'sel_l3': None,
-                                  'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None})
+                                  'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None, 'geo_country': None})
         st.rerun()
 with col_m3:
+    if st.button("🌍 Geographic Map", use_container_width=True):
+        st.session_state.update({'mode': 'map', 'geo_country': None})
+        st.rerun()
+with col_m4:
     inner_left, inner_right = st.columns([5, 3])
     with inner_right:
         st.download_button(
@@ -326,7 +394,7 @@ with col_m3:
             key="dl_all",
             use_container_width=True,
         )
-with col_m3:
+with col_m4:
     st.markdown("""
     <style>
     .method-tip { display:inline-flex; align-items:center; gap:7px; margin-top:6px; }
@@ -543,9 +611,9 @@ components.html("""
                 btn.style.setProperty('padding', '0 8px', 'important');
                 btn.style.setProperty('border-radius', '5px', 'important');
             } else if (txt.includes('Mixed')) {
-                btn.style.setProperty('background-color', '#ffffff', 'important');
-                btn.style.setProperty('color', '#1f2937', 'important');
-                btn.style.setProperty('border', '1.5px solid #92400e', 'important');
+                btn.style.setProperty('background-color', '#1f2937', 'important');
+                btn.style.setProperty('color', '#ffffff', 'important');
+                btn.style.setProperty('border', '1.5px solid #111827', 'important');
                 btn.style.setProperty('font-size', '0.72rem', 'important');
                 btn.style.setProperty('font-weight', '600', 'important');
                 btn.style.setProperty('min-height', '28px', 'important');
@@ -956,7 +1024,7 @@ if st.session_state.mode == 'drill':
 # ══════════════════════════════════════════════════════════════════════════════
 # MODE B — MULTI-ASSET
 # ══════════════════════════════════════════════════════════════════════════════
-else:
+elif st.session_state.mode == 'multi':
     qv = st.session_state.quick_view
 
     st.markdown(
@@ -1117,6 +1185,153 @@ else:
             '← Click on one or more asset classes to view scenarios.</div>',
             unsafe_allow_html=True
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODE C — GEOGRAPHIC MAP
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.mode == 'map':
+    import plotly.graph_objects as go
+
+    if not GEO_AVAILABLE or geo_df.empty:
+        st.warning("Geographic data not available.")
+    else:
+        _type_sel_geo = st.session_state.scenario_type
+        geo_filtered = geo_df.copy()
+        if _type_sel_geo in ('BRS', 'EC'):
+            valid_scenarios = df['Scenario'].unique()
+            geo_filtered = geo_filtered[geo_filtered['Scenario'].isin(valid_scenarios)]
+
+        country_agg = (
+            geo_filtered.groupby(['ISO3', 'Country'])['Scenario']
+            .nunique().reset_index()
+            .rename(columns={'Scenario': 'n_scenarios'})
+        )
+
+        sel_country = st.session_state.geo_country
+        max_n = max(country_agg['n_scenarios'].max(), 1)
+
+        hover_texts = []
+        for _, row in country_agg.iterrows():
+            scs = sorted(geo_filtered[geo_filtered['ISO3'] == row['ISO3']]['Scenario'].unique())
+            sc_list = '<br>'.join(f'  · {s}' for s in scs[:8])
+            if len(scs) > 8:
+                sc_list += f'<br>  ... +{len(scs)-8} more'
+            hover_texts.append(f"<b>{row['Country']}</b><br>Scenarios: <b>{row['n_scenarios']}</b><br><br>{sc_list}")
+
+        fig = go.Figure(go.Choropleth(
+            locations=country_agg['ISO3'],
+            z=country_agg['n_scenarios'],
+            text=country_agg['Country'],
+            customdata=list(zip(country_agg['ISO3'], country_agg['Country'], hover_texts)),
+            hovertemplate='%{customdata[2]}<extra></extra>',
+            colorscale=[
+                [0.0,  '#fff5f5'], [0.25, '#fca5a5'],
+                [0.5,  '#ef4444'], [0.75, '#b91c1c'], [1.0,  '#7f1d1d'],
+            ],
+            zmin=0, zmax=max_n,
+            marker_line_color='#e5e7eb', marker_line_width=0.5,
+            colorbar=dict(
+                title=dict(text='Scenarios', font=dict(size=11, color='#6b7280')),
+                tickfont=dict(size=10, color='#6b7280'),
+                len=0.5, thickness=12, x=1.01,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='#e6e6e6', borderwidth=1,
+            ),
+        ))
+
+        if sel_country:
+            sel_row = country_agg[country_agg['ISO3'] == sel_country]
+            if not sel_row.empty:
+                fig.add_trace(go.Choropleth(
+                    locations=[sel_country],
+                    z=[sel_row['n_scenarios'].values[0]],
+                    colorscale=[[0, '#ff4b4b'], [1, '#ff4b4b']],
+                    showscale=False,
+                    marker_line_color='#ff4b4b', marker_line_width=3,
+                    hoverinfo='skip',
+                ))
+
+        fig.update_layout(
+            geo=dict(
+                showframe=False, showcoastlines=True,
+                coastlinecolor='#d1d5db', showland=True, landcolor='#f9fafb',
+                showocean=True, oceancolor='#eff6ff', showlakes=False,
+                showcountries=True, countrycolor='#e5e7eb',
+                projection_type='natural earth', bgcolor='#ffffff',
+            ),
+            paper_bgcolor='#ffffff', plot_bgcolor='#ffffff',
+            margin=dict(l=0, r=0, t=8, b=0), height=480,
+        )
+
+        n_countries = len(country_agg)
+        n_sc_geo = geo_filtered['Scenario'].nunique()
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:16px;background:#f8f9fb;'
+            f'border:1px solid #e6e6e6;border-radius:8px;padding:8px 16px;margin-bottom:0.8rem;">'
+            f'<span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Geographic Coverage</span>'
+            f'<span style="font-size:0.82rem;font-weight:700;color:#0e1117;">{n_countries} countries</span>'
+            f'<span style="color:#e6e6e6;">|</span>'
+            f'<span style="font-size:0.82rem;color:#6b7280;">{n_sc_geo} scenarios mapped</span>'
+            f'<span style="color:#e6e6e6;">|</span>'
+            f'<span style="font-size:0.72rem;color:#9ca3af;font-style:italic;">Click a country on the map to view its scenarios</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        event = st.plotly_chart(
+            fig, use_container_width=True,
+            on_select='rerun', key='geo_map', selection_mode='points',
+        )
+
+        if event and hasattr(event, 'selection') and event.selection:
+            pts = event.selection.get('points', [])
+            if pts:
+                clicked_iso = pts[0].get('location')
+                if clicked_iso and clicked_iso != st.session_state.geo_country:
+                    st.session_state.geo_country = clicked_iso
+                    st.rerun()
+
+        if sel_country:
+            sel_name_arr = country_agg[country_agg['ISO3'] == sel_country]['Country'].values
+            sel_name = sel_name_arr[0] if len(sel_name_arr) else sel_country
+            sc_for_country = sorted(geo_filtered[geo_filtered['ISO3'] == sel_country]['Scenario'].unique())
+
+            col_hdr, col_close = st.columns([8, 1.2])
+            with col_hdr:
+                st.markdown(
+                    f'<div class="section-header">🌍 {sel_name} — '
+                    f'{len(sc_for_country)} scenario{"s" if len(sc_for_country)!=1 else ""}</div>',
+                    unsafe_allow_html=True
+                )
+            with col_close:
+                if st.button("✕ Deselect", key="geo_desel"):
+                    st.session_state.geo_country = None
+                    st.rerun()
+
+            df_geo_scenarios = df[df['Scenario'].isin(sc_for_country)].copy()
+            if df_geo_scenarios.empty:
+                st.info("No shock detail available for these scenarios.")
+            else:
+                render_export_row(df_geo_scenarios, df_geo_scenarios,
+                                  f"geo_{sel_country}_{sel_name.replace(' ', '_')}")
+                render_scenario_rows(df_geo_scenarios, df, th_class="", path_mode=True)
+
+        else:
+            st.markdown('<div class="section-header">Countries with mapped scenarios</div>',
+                        unsafe_allow_html=True)
+            sorted_agg = country_agg.sort_values('n_scenarios', ascending=False).reset_index(drop=True)
+            ncards = min(len(sorted_agg), 6)
+            if ncards > 0:
+                card_cols = st.columns(ncards)
+                for i, crow in sorted_agg.iterrows():
+                    if i >= 6:
+                        break
+                    with card_cols[i % ncards]:
+                        lbl = f"{crow['Country']} ({crow['n_scenarios']})"
+                        if st.button(lbl, key=f"geo_card_{crow['ISO3']}", use_container_width=True):
+                            st.session_state.geo_country = crow['ISO3']
+                            st.rerun()
 
 # ─── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("<br><br>", unsafe_allow_html=True)
