@@ -682,11 +682,15 @@ def render_quick_view(df_context, col_name):
         label      = f"▲ Positive scenarios — {item}"
         df_display = df_item[df_item['Scenario'].isin(matching)]
         df_display = df_display[df_display['Value'].notna() & (df_display['Value'] > 0)]
-    else:
+    elif direction == 'neg':
         th_class   = "neg-th"
         label      = f"▼ Negative scenarios — {item}"
         df_display = df_item[df_item['Scenario'].isin(matching)]
         df_display = df_display[df_display['Value'].notna() & (df_display['Value'] < 0)]
+    else:  # zero / mixed
+        th_class   = "mix-th"
+        label      = f"~ Mixed scenarios — {item}"
+        df_display = df_item[df_item['Scenario'].isin(matching)]
 
     st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
     col_close, _ = st.columns([1.2, 8])
@@ -709,14 +713,14 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
 
     for i, item in enumerate(items):
         sub   = df_filtered[df_filtered[col_name] == item]
-        n_pos, n_neg, _ = count_directions(sub)
+        n_pos, n_neg, n_zero = count_directions(sub)
         is_sel    = (item in st.session_state.sel_l1_set) if multi else (st.session_state.get(on_select_key) == item)
         btn_label = f"{'✓ ' if is_sel else ''}{item}"
 
         with cols[i % ncols]:
             clicked = st.button(btn_label, key=f"btn_{on_select_key}_{item}", use_container_width=True)
             if show_mini:
-                mc1, mc2 = st.columns(2)
+                mc1, mc2, mc3 = st.columns(3)
                 with mc1:
                     if st.button(f"▲ {n_pos}  Positive",
                                  key=f"mini_pos_{on_select_key}_{item}",
@@ -738,6 +742,17 @@ def render_cards(items, df_filtered, col_name, on_select_key, multi=False, show_
                             st.session_state.quick_view   = None
                         else:
                             st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'neg'}
+                        st.rerun()
+                with mc3:
+                    if st.button(f"~ {n_zero}  Mixed",
+                                 key=f"mini_zero_{on_select_key}_{item}",
+                                 use_container_width=True):
+                        if multi:
+                            st.session_state.sel_l1_set.add(item)
+                            st.session_state.shock_filter = 'zero'
+                            st.session_state.quick_view   = None
+                        else:
+                            st.session_state.quick_view = {'col': col_name, 'item': item, 'dir': 'zero'}
                         st.rerun()
             if clicked:
                 st.session_state.quick_view = None
