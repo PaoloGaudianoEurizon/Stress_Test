@@ -122,6 +122,29 @@ st.markdown("""
 .type-brs { background: #dbeafe; color: #1d4ed8; }
 .type-ec  { background: #dcfce7; color: #15803d; }
 
+/* ── Type filter bar ── */
+.type-filter-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: #f8f9fb; border: 1px solid #e6e6e6; border-radius: 8px;
+    padding: 8px 14px; margin-bottom: 1rem;
+}
+.type-filter-label {
+    font-size: 0.65rem; color: #9ca3af; text-transform: uppercase;
+    letter-spacing: 0.08em; white-space: nowrap; margin-right: 4px;
+}
+.type-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72rem; font-weight: 600; padding: 3px 12px;
+    border-radius: 20px; border: 1.5px solid transparent;
+    cursor: pointer; transition: all 0.15s;
+}
+.type-chip-all        { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+.type-chip-all.active { background: #1f2937; color: #ffffff;  border-color: #1f2937; }
+.type-chip-brs        { background: #eff6ff; color: #1d4ed8;  border-color: #bfdbfe; }
+.type-chip-brs.active { background: #1d4ed8; color: #ffffff;  border-color: #1d4ed8; }
+.type-chip-ec         { background: #f0fdf4; color: #15803d;  border-color: #bbf7d0; }
+.type-chip-ec.active  { background: #15803d; color: #ffffff;  border-color: #15803d; }
+
 /* ── Default buttons ── */
 .stButton > button {
     background: #ffffff; color: #31333f;
@@ -255,6 +278,7 @@ def build_export_bytes(df_sub):
 for k, v in {
     'sel_l1_set': set(), 'sel_l1_single': None, 'sel_l2': None, 'sel_l3': None,
     'mode': 'drill', 'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None,
+    'scenario_type': 'All',
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -370,6 +394,56 @@ with col_m3:
         <span class="method-label">Direction methodology</span>
     </div>
     """, unsafe_allow_html=True)
+st.markdown("---")
+
+# ─── FILTRO SCENARIO TYPE (BRS / EC / All) ────────────────────────────────────
+_n_brs = int((df['Scenario Type'] == 'BRS').sum() / df.groupby('Scenario')['Scenario Type'].first().eq('BRS').sum()
+             * df['Scenario'].nunique()) if df['Scenario'].nunique() else 0
+_sc_brs = df[df['Scenario Type'] == 'BRS']['Scenario'].nunique()
+_sc_ec  = df[df['Scenario Type'] == 'EC']['Scenario'].nunique()
+_sc_all = df['Scenario'].nunique()
+
+_cur_type = st.session_state.scenario_type
+
+_col_type, _col_spacer = st.columns([5, 7])
+with _col_type:
+    _t_all = "active" if _cur_type == "All" else ""
+    _t_brs = "active" if _cur_type == "BRS" else ""
+    _t_ec  = "active" if _cur_type == "EC"  else ""
+    st.markdown(f"""
+    <div class="type-filter-bar">
+      <span class="type-filter-label">Scenario type</span>
+      <span class="type-chip type-chip-all {_t_all}">All &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_all})</span></span>
+      <span class="type-chip type-chip-brs {_t_brs}">BRS &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_brs})</span></span>
+      <span class="type-chip type-chip-ec  {_t_ec}">EC &nbsp;<span style="font-weight:400;font-size:0.65rem;">({_sc_ec})</span></span>
+    </div>
+    """, unsafe_allow_html=True)
+
+_type_cols = st.columns(3)
+with _type_cols[0]:
+    if st.button(f"All  ({_sc_all})", key="tf_all", use_container_width=True):
+        st.session_state.update({'scenario_type': 'All', 'sel_l1_single': None,
+                                  'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
+                                  'shock_filter': 'all', 'quick_view': None})
+        st.rerun()
+with _type_cols[1]:
+    if st.button(f"BRS  ({_sc_brs})", key="tf_brs", use_container_width=True):
+        st.session_state.update({'scenario_type': 'BRS', 'sel_l1_single': None,
+                                  'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
+                                  'shock_filter': 'all', 'quick_view': None})
+        st.rerun()
+with _type_cols[2]:
+    if st.button(f"EC  ({_sc_ec})", key="tf_ec", use_container_width=True):
+        st.session_state.update({'scenario_type': 'EC', 'sel_l1_single': None,
+                                  'sel_l2': None, 'sel_l3': None, 'sel_l1_set': set(),
+                                  'shock_filter': 'all', 'quick_view': None})
+        st.rerun()
+
+# Applica filtro tipo su df (da qui in poi df è già filtrato)
+_type_sel = st.session_state.scenario_type
+if _type_sel in ('BRS', 'EC'):
+    df = df[df['Scenario Type'] == _type_sel]
+
 st.markdown("---")
 
 # ─── JS: colora bottoni Positive/Negative ──────────────────────────────────────
@@ -949,8 +1023,9 @@ else:
 
 # ─── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("<br><br>", unsafe_allow_html=True)
+_type_label = f" · Filter: {_type_sel}" if _type_sel != 'All' else ''
 st.markdown(
-    '<div style="font-size:0.6rem;color:#9ca3af;text-align:center;">'
-    f'Stress Test Dashboard · Lista_scenari_shocks.xlsx · {_n_sc} scenarios · {_n_l1} asset classes</div>',
+    f'<div style="font-size:0.6rem;color:#9ca3af;text-align:center;">'
+    f'Stress Test Dashboard · Lista_scenari_shocks.xlsx · {_n_sc} scenarios · {_n_l1} asset classes{_type_label}</div>',
     unsafe_allow_html=True
 )
