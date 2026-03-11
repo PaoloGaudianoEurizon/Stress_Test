@@ -158,14 +158,18 @@ st.markdown("""
 # ─── HELPERS ───────────────────────────────────────────────────────────────────
 
 def to_bps(value, unit):
-    """Converte Value + Unit in bps per il calcolo della direzione."""
+    """Converte Value + Unit in bps per il calcolo della direzione.
+    Solo 'bps', 'pct' e 'rel %' entrano nel calcolo.
+    Livelli assoluti (pct/yr, Price, Index Lvl, FX Rate, target) sono esclusi:
+    rappresentano target di livello, non shock direzionali.
+    """
     if pd.isna(value) or pd.isna(unit):
         return np.nan
     unit = str(unit).strip().lower()
     if unit == 'bps':    return float(value)
     if unit == 'pct':    return float(value) * 100
     if unit == 'rel %':  return float(value) * 100
-    # 'target' e altri: escludi dal calcolo direzione
+    # pct/yr, Price, Index Lvl, FX Rate, target → esclusi
     return np.nan
 
 def group_direction_score(sub):
