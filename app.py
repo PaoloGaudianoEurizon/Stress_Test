@@ -606,9 +606,9 @@ components.html("""
                 btn.style.setProperty('padding', '0 8px', 'important');
                 btn.style.setProperty('border-radius', '5px', 'important');
             } else if (txt.includes('Mixed')) {
-                btn.style.setProperty('background-color', '#1f2937', 'important');
-                btn.style.setProperty('color', '#ffffff', 'important');
-                btn.style.setProperty('border', '1.5px solid #111827', 'important');
+                btn.style.setProperty('background-color', '#ffffff', 'important');
+                btn.style.setProperty('color', '#b45309', 'important');
+                btn.style.setProperty('border', '1.5px solid #b45309', 'important');
                 btn.style.setProperty('font-size', '0.72rem', 'important');
                 btn.style.setProperty('font-weight', '600', 'important');
                 btn.style.setProperty('min-height', '28px', 'important');
