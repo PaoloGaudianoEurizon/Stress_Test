@@ -1190,6 +1190,9 @@ elif st.session_state.mode == 'map':
             valid_scenarios = df['Scenario'].unique()
             geo_filtered = geo_filtered[geo_filtered['Scenario'].isin(valid_scenarios)]
 
+        # Normalizza: vecchio formato stringa -> reset a None
+        if not isinstance(st.session_state.geo_area, (dict, type(None))):
+            st.session_state.geo_area = None
         sel = st.session_state.geo_area  # None | {'type':'area'|'country', 'value':str}
 
         # ── Aggrega per paese specifico (level=='country') ────────────────────
