@@ -671,6 +671,10 @@ def render_scenario_rows(df_display, df_all_shocks, th_class="", path_mode=False
         sc_type  = type_map.get(str(scenario).strip(), '')
         badge_cls = 'type-brs' if sc_type == 'BRS' else 'type-ec'
 
+        # Fattori che compaiono più volte in questo scenario → mostra extra per disambiguare
+        _factor_counts = sc_rows['Factor'].value_counts()
+        _dup_factors   = set(_factor_counts[_factor_counts > 1].index.tolist())
+
         factors_html = '<div class="factor-list" style="margin-top:0">'
         for _, r in sc_rows.iterrows():
             val  = r['Value']
@@ -678,7 +682,8 @@ def render_scenario_rows(df_display, df_all_shocks, th_class="", path_mode=False
             shock_str = format_shock(val, unit)
 
             _fc = str(r.get('Factor', '')).strip()
-            _ex = parse_extra(r.get('Extra', ''))
+            # Mostra extra solo se il fattore è duplicato nello scenario
+            _ex = parse_extra(r.get('Extra', '')) if _fc in _dup_factors else ''
             _extra_tag = (
                 f' <span style="color:#b0b7c3;font-size:0.68rem;font-weight:400;'
                 f'font-style:italic;">[{_ex}]</span>'
