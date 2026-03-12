@@ -180,6 +180,15 @@ def format_shock(value, unit):
         return f"{val_str} {unit}"
     return val_str
 
+def parse_extra(extra):
+    """Estrae i token con underscore dalla colonna Extra, escludendo 'target block/to'."""
+    if pd.isna(extra) or str(extra).strip() in ('', 'nan'):
+        return ''
+    s = re.sub(r'^target\s+(block|to)\s+', '', str(extra).strip(), flags=re.IGNORECASE)
+    tokens = re.split(r'[,\s\-]+', s)
+    tokens = [t.strip() for t in tokens if '_' in t and t.strip()]
+    return ' · '.join(tokens)
+
 # ─── DATA ──────────────────────────────────────────────────────────────────────
 FILE_PATH = "Lista_scenari_shocks.xlsx"
 
@@ -669,9 +678,15 @@ def render_scenario_rows(df_display, df_all_shocks, th_class="", path_mode=False
             shock_str = format_shock(val, unit)
 
             _fc = str(r.get('Factor', '')).strip()
+            _ex = parse_extra(r.get('Extra', ''))
+            _extra_tag = (
+                f' <span style="color:#b0b7c3;font-size:0.68rem;font-weight:400;'
+                f'font-style:italic;">[{_ex}]</span>'
+                if _ex else ''
+            )
             _factor_suffix = (
-                f' <span style="color:#9ca3af;font-size:0.72rem;font-weight:400;">· {_fc}</span>'
-                if _fc not in ('', 'nan') else ''
+                f' <span style="color:#9ca3af;font-size:0.72rem;font-weight:400;">· {_fc}</span>{_extra_tag}'
+                if _fc not in ('', 'nan') else _extra_tag
             )
             if path_mode:
                 _path = " › ".join([str(r[c]) for c in ['L1', 'L2', 'L3']
