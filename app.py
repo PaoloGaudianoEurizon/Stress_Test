@@ -216,54 +216,101 @@ except FileNotFoundError:
 
 # ─── GEO DATA ─────────────────────────────────────────────────────────────────
 
-# ISO3 rappresentativi per area geografica
-_AREA_TO_ISO3 = {
-    'US':               ['USA'],
-    'North America':    ['USA', 'CAN'],
-    'Europe':           ['GBR', 'DEU', 'FRA', 'ITA', 'ESP', 'CHE', 'NLD',
-                         'BEL', 'SWE', 'NOR', 'DNK', 'FIN', 'AUT', 'POL',
-                         'PRT', 'GRC', 'IRL', 'LUX'],
-    'Japan':            ['JPN'],
-    'Pacific ex Japan': ['AUS', 'HKG', 'SGP', 'NZL', 'KOR', 'TWN'],
-    'Emerging Markets': ['CHN', 'IND', 'BRA', 'MEX', 'RUS', 'ZAF', 'TUR',
-                         'SAU', 'IDN', 'THA', 'MYS', 'PHL', 'PAK', 'ARG',
-                         'CHL', 'COL', 'PER', 'VEN', 'EGY', 'MAR', 'NGA',
-                         'QAT', 'ARE', 'ISR', 'HUN', 'CZE', 'UKR', 'VNM'],
+
+# ── Factor → ISO3 specifico (paese singolo) ───────────────────────────────────
+FACTOR_TO_ISO3 = {
+    # Europe
+    'Austria ATX': 'AUT', 'Belgium 20': 'BEL', 'DAX 30': 'DEU',
+    'Denmark OMX Copenhag20': 'DNK', 'FTSE 100': 'GBR',
+    'FTSE All Share - FTSE 100': 'GBR', 'France CAC 40': 'FRA',
+    'Greece ASE/General': 'GRC', 'Ireland ISEQ/General': 'IRL',
+    'Italy S&P MIB': 'ITA', 'Italy S&P MIB - MSCI EUROPE(EUR)': 'ITA',
+    'Luxembourg LUXX': 'LUX', 'Netherlands AEX Stk': 'NLD',
+    'Poland WIG': 'POL', 'Portugal PSI 20': 'PRT',
+    'Spain IBEX 35': 'ESP', 'Sweden OMX': 'SWE', 'Switzerland SMI': 'CHE',
+    # Emerging Markets - indici
+    'Brazil Bovespa': 'BRA', 'China Shanghai SECmp': 'CHN',
+    'China Shenzhen SEAll': 'CHN', 'Czech Republic PX 50': 'CZE',
+    'Hungary BUX': 'HUN', 'India BSE 100': 'IND',
+    'Korea KOSPI Comp': 'KOR', 'Mexican Bolsa': 'MEX',
+    'Pakistan KSE 100': 'PAK', 'Philippines PSEi': 'PHL',
+    'Russia RTS': 'RUS', 'Taiwan TSEC': 'TWN', 'Taiwan TWSE': 'TWN',
+    'Turkey ISE Natl 100': 'TUR',
+    # Emerging Markets - Country Allocation
+    'Argentina': 'ARG', 'Brazil': 'BRA', 'China Domestic': 'CHN',
+    'China Offshore': 'CHN', 'Hungary': 'HUN', 'Indonesia': 'IDN',
+    'Mexico': 'MEX', 'Pakistan': 'PAK', 'Qatar': 'QAT',
+    'Saudi Arabia': 'SAU', 'South Africa': 'ZAF', 'Taiwan': 'TWN',
+    'Turkey': 'TUR', 'Ukraine': 'UKR', 'Venezuela': 'VEN', 'Viet Nam': 'VNM',
+    # Pacific ex Japan
+    'Hang Seng': 'HKG', 'S&P ASX 200': 'AUS', 'Singapore StraitsTms': 'SGP',
+    # North America
+    'Canada': 'CAN',
+    # Japan
+    'NIKKEI 225': 'JPN', 'NIKKEI 225 - MSCI World Net TR': 'JPN',
+    'MSCI Japan - MSCI World Net TR': 'JPN', 'MSCI Japan - MSCI EUROPE(EUR)': 'JPN',
+    # US
+    'S&P 500': 'USA', 'Nasdaq': 'USA', 'VIX': 'USA', 'VIX Volatility': 'USA',
+    'S&P Mid Cap': 'USA', 'S&P Small Cap': 'USA',
+    'Russell 1000 - Russell 2000': 'USA',
+    'Russell 3000 Growth - Russell 3000 Value': 'USA',
 }
 
-_AREA_ORDER = ['US', 'Europe', 'Emerging Markets', 'Japan',
-               'Pacific ex Japan', 'North America']
+# ISO3 -> Area
+_ISO3_TO_AREA = {
+    'USA': 'US', 'CAN': 'North America',
+    'GBR': 'Europe', 'DEU': 'Europe', 'FRA': 'Europe', 'ITA': 'Europe',
+    'ESP': 'Europe', 'CHE': 'Europe', 'NLD': 'Europe', 'BEL': 'Europe',
+    'SWE': 'Europe', 'NOR': 'Europe', 'DNK': 'Europe', 'FIN': 'Europe',
+    'AUT': 'Europe', 'POL': 'Europe', 'PRT': 'Europe', 'GRC': 'Europe',
+    'IRL': 'Europe', 'LUX': 'Europe',
+    'JPN': 'Japan',
+    'AUS': 'Pacific ex Japan', 'HKG': 'Pacific ex Japan',
+    'SGP': 'Pacific ex Japan', 'NZL': 'Pacific ex Japan',
+    'KOR': 'Pacific ex Japan', 'TWN': 'Pacific ex Japan',
+    'CHN': 'Emerging Markets', 'IND': 'Emerging Markets',
+    'BRA': 'Emerging Markets', 'MEX': 'Emerging Markets',
+    'RUS': 'Emerging Markets', 'ZAF': 'Emerging Markets',
+    'TUR': 'Emerging Markets', 'SAU': 'Emerging Markets',
+    'IDN': 'Emerging Markets', 'THA': 'Emerging Markets',
+    'MYS': 'Emerging Markets', 'PHL': 'Emerging Markets',
+    'PAK': 'Emerging Markets', 'ARG': 'Emerging Markets',
+    'CHL': 'Emerging Markets', 'COL': 'Emerging Markets',
+    'PER': 'Emerging Markets', 'VEN': 'Emerging Markets',
+    'EGY': 'Emerging Markets', 'MAR': 'Emerging Markets',
+    'NGA': 'Emerging Markets', 'QAT': 'Emerging Markets',
+    'ARE': 'Emerging Markets', 'ISR': 'Emerging Markets',
+    'HUN': 'Emerging Markets', 'CZE': 'Emerging Markets',
+    'UKR': 'Emerging Markets', 'VNM': 'Emerging Markets',
+}
 
 
 @st.cache_data
 def load_geo_data():
     df_raw = pd.read_excel(FILE_PATH, sheet_name="Shocks")
     if 'Country' not in df_raw.columns:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=[
+            'Scenario', 'Scenario Type', 'Area', 'ISO3', 'Value', 'Factor', 'level'
+        ])
 
     sub = df_raw[df_raw['Country'].notna()][
-        ['Scenario', 'Scenario Type', 'Country', 'Value']
+        ['Scenario', 'Scenario Type', 'Factor', 'Country', 'Value']
     ].copy()
 
-    # Valore medio per (Scenario, Scenario Type, Area)
-    grp = (
-        sub.groupby(['Scenario', 'Scenario Type', 'Country'])['Value']
-        .mean().reset_index()
-        .rename(columns={'Country': 'Area'})
-    )
-
-    # Espandi ogni area nei suoi ISO3 rappresentativi
     rows = []
-    for _, row in grp.iterrows():
-        for iso3 in _AREA_TO_ISO3.get(row['Area'], []):
-            rows.append({
-                'Scenario':      row['Scenario'],
-                'Scenario Type': row['Scenario Type'],
-                'Area':          row['Area'],
-                'ISO3':          iso3,
-                'Value':         row['Value'],
-            })
+    for _, r in sub.iterrows():
+        iso3_specific = FACTOR_TO_ISO3.get(str(r['Factor']).strip())
+        rows.append({
+            'Scenario':      r['Scenario'],
+            'Scenario Type': r['Scenario Type'],
+            'Area':          r['Country'],
+            'ISO3':          iso3_specific if iso3_specific else None,
+            'Value':         r['Value'],
+            'Factor':        r['Factor'],
+            'level':         'country' if iso3_specific else 'area',
+        })
     return pd.DataFrame(rows)
+
 
 
 try:
@@ -1127,7 +1174,9 @@ elif st.session_state.mode == 'multi':
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODE C — GEOGRAPHIC MAP  (completamente riscritto)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODE C — GEOGRAPHIC MAP
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.mode == 'map':
     import plotly.graph_objects as go
@@ -1135,85 +1184,96 @@ elif st.session_state.mode == 'map':
     if not GEO_AVAILABLE or geo_df.empty:
         st.warning("Geographic data not available.")
     else:
-        # Filtra per scenario type se necessario
         _type_sel_geo = st.session_state.scenario_type
         geo_filtered = geo_df.copy()
         if _type_sel_geo in ('BRS', 'EC'):
             valid_scenarios = df['Scenario'].unique()
             geo_filtered = geo_filtered[geo_filtered['Scenario'].isin(valid_scenarios)]
 
-        sel_area = st.session_state.geo_area
+        sel = st.session_state.geo_area  # None | {'type':'area'|'country', 'value':str}
 
-        # ── Aggrega per ISO3: prende l'area con più scenari per ogni ISO3 ────
-        # (evita duplicati: USA appare sia per 'US' che 'North America')
-        _iso3_full = (
-            geo_filtered.groupby(['ISO3', 'Area'])['Scenario']
+        # ── Aggrega per paese specifico (level=='country') ────────────────────
+        country_df = geo_filtered[geo_filtered['level'] == 'country'].copy()
+        country_agg = (
+            country_df.groupby(['ISO3', 'Area'])['Scenario']
             .nunique().reset_index()
-            .rename(columns={'Scenario': 'n_scenarios'})
+            .rename(columns={'Scenario': 'n_sc'})
         )
-        # Per ogni ISO3 tieni solo l'area con n_scenarios massimo
-        iso3_agg = (
-            _iso3_full.sort_values('n_scenarios', ascending=False)
-            .drop_duplicates(subset='ISO3')
-            .reset_index(drop=True)
-        )
-        # Mappa ISO3 -> Area (serve per il click)
-        _iso3_to_area = dict(zip(iso3_agg['ISO3'], iso3_agg['Area']))
 
-        # ── Hover text ────────────────────────────────────────────────────────
+        max_n = max(country_agg['n_sc'].max() if not country_agg.empty else 1, 1)
+
+        # ── Hover text per paese specifico ────────────────────────────────────
         hover_texts = []
-        for _, row in iso3_agg.iterrows():
-            area_name = row['Area']
-            scs = sorted(geo_filtered[geo_filtered['Area'] == area_name]['Scenario'].unique())
+        for _, row in country_agg.iterrows():
+            scs = sorted(country_df[country_df['ISO3'] == row['ISO3']]['Scenario'].unique())
             sc_list = '<br>'.join(f'  · {s}' for s in scs[:8])
             if len(scs) > 8:
                 sc_list += f'<br>  ... +{len(scs)-8} more'
             hover_texts.append(
-                f"<b>{area_name}</b><br>Scenarios: <b>{row['n_scenarios']}</b><br><br>{sc_list}"
+                f"<b>{row['ISO3']} ({row['Area']})</b>"
+                f"<br>Specific scenarios: <b>{row['n_sc']}</b>"
+                f"<br><br>{sc_list}"
             )
 
-        max_n = max(iso3_agg['n_scenarios'].max(), 1)
+        # ── Figura: solo paesi specifici colorati, resto grigio ───────────────
+        fig = go.Figure()
 
-        # ── Choropleth principale ─────────────────────────────────────────────
-        fig = go.Figure(go.Choropleth(
-            locations=iso3_agg['ISO3'],
-            z=iso3_agg['n_scenarios'],
-            customdata=list(zip(iso3_agg['ISO3'], iso3_agg['Area'], hover_texts)),
-            hovertemplate='%{customdata[2]}<extra></extra>',
-            colorscale=[
-                [0.0,  '#fff5f5'], [0.25, '#fca5a5'],
-                [0.5,  '#ef4444'], [0.75, '#b91c1c'], [1.0,  '#7f1d1d'],
-            ],
-            zmin=0, zmax=max_n,
-            marker_line_color='#e5e7eb', marker_line_width=0.5,
-            colorbar=dict(
-                title=dict(text='Scenarios', font=dict(size=11, color='#6b7280')),
-                tickfont=dict(size=10, color='#6b7280'),
-                len=0.5, thickness=12, x=1.01,
-                bgcolor='rgba(255,255,255,0.9)',
-                bordercolor='#e6e6e6', borderwidth=1,
-            ),
-        ))
+        # Layer 1: paesi specifici (rosso, intensità = n scenari)
+        if not country_agg.empty:
+            fig.add_trace(go.Choropleth(
+                locations=country_agg['ISO3'],
+                z=country_agg['n_sc'],
+                customdata=list(zip(
+                    country_agg['ISO3'],
+                    country_agg['Area'],
+                    hover_texts,
+                )),
+                hovertemplate='%{customdata[2]}<extra></extra>',
+                colorscale=[
+                    [0.0, '#fee2e2'], [0.33, '#f87171'],
+                    [0.66, '#dc2626'], [1.0,  '#7f1d1d'],
+                ],
+                zmin=0, zmax=max_n,
+                marker_line_color='#e5e7eb', marker_line_width=0.6,
+                showscale=True,
+                colorbar=dict(
+                    title=dict(text='Country\nscenarios', font=dict(size=10, color='#6b7280')),
+                    tickfont=dict(size=9, color='#6b7280'),
+                    len=0.45, thickness=11, x=1.01,
+                    bgcolor='rgba(255,255,255,0.9)',
+                    bordercolor='#e6e6e6', borderwidth=1,
+                ),
+            ))
 
-        # Highlight area selezionata
-        if sel_area:
-            sel_iso3_list = [r['ISO3'] for _, r in iso3_agg.iterrows() if r['Area'] == sel_area]
-            if sel_iso3_list:
-                sel_z = [iso3_agg[iso3_agg['ISO3'] == iso3]['n_scenarios'].values[0]
-                         for iso3 in sel_iso3_list]
-                fig.add_trace(go.Choropleth(
-                    locations=sel_iso3_list,
-                    z=sel_z,
-                    colorscale=[[0, '#ff4b4b'], [1, '#ff4b4b']],
-                    showscale=False,
-                    marker_line_color='#ff4b4b', marker_line_width=3,
-                    hoverinfo='skip',
-                ))
+        # Layer 2: highlight selezione corrente
+        if sel:
+            if sel['type'] == 'country':
+                hi_rows = country_agg[country_agg['ISO3'] == sel['value']]
+                if not hi_rows.empty:
+                    fig.add_trace(go.Choropleth(
+                        locations=[sel['value']],
+                        z=[hi_rows['n_sc'].values[0]],
+                        colorscale=[[0, '#ff4b4b'], [1, '#ff4b4b']],
+                        showscale=False,
+                        marker_line_color='#ff4b4b', marker_line_width=3,
+                        hoverinfo='skip',
+                    ))
+            else:  # area selezionata: evidenzia tutti i paesi specifici dell'area
+                area_iso3 = country_agg[country_agg['Area'] == sel['value']]['ISO3'].tolist()
+                area_z    = country_agg[country_agg['Area'] == sel['value']]['n_sc'].tolist()
+                if area_iso3:
+                    fig.add_trace(go.Choropleth(
+                        locations=area_iso3, z=area_z,
+                        colorscale=[[0, '#ff4b4b'], [1, '#ff4b4b']],
+                        showscale=False,
+                        marker_line_color='#ff4b4b', marker_line_width=3,
+                        hoverinfo='skip',
+                    ))
 
         fig.update_layout(
             geo=dict(
                 showframe=False, showcoastlines=True,
-                coastlinecolor='#d1d5db', showland=True, landcolor='#f9fafb',
+                coastlinecolor='#d1d5db', showland=True, landcolor='#f3f4f6',
                 showocean=True, oceancolor='#eff6ff', showlakes=False,
                 showcountries=True, countrycolor='#e5e7eb',
                 projection_type='natural earth', bgcolor='#ffffff',
@@ -1223,17 +1283,18 @@ elif st.session_state.mode == 'map':
         )
 
         # ── Info strip ────────────────────────────────────────────────────────
-        n_areas = geo_filtered['Area'].nunique()
-        n_sc_geo = geo_filtered['Scenario'].nunique()
+        n_countries  = country_agg['ISO3'].nunique()
+        n_areas      = geo_filtered['Area'].nunique()
+        n_sc_geo     = geo_filtered['Scenario'].nunique()
         st.markdown(
-            f'<div style="display:flex;align-items:center;gap:16px;background:#f8f9fb;'
-            f'border:1px solid #e6e6e6;border-radius:8px;padding:8px 16px;margin-bottom:0.8rem;">'
-            f'<span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Geographic Coverage</span>'
-            f'<span style="font-size:0.82rem;font-weight:700;color:#0e1117;">{n_areas} areas</span>'
-            f'<span style="color:#e6e6e6;">|</span>'
-            f'<span style="font-size:0.82rem;color:#6b7280;">{n_sc_geo} scenarios mapped</span>'
-            f'<span style="color:#e6e6e6;">|</span>'
-            f'<span style="font-size:0.72rem;color:#9ca3af;font-style:italic;">Click a region on the map to view its scenarios</span>'
+            f'<div style="display:flex;align-items:center;gap:16px;background:#f8f9fb;' 
+            f'border:1px solid #e6e6e6;border-radius:8px;padding:8px 16px;margin-bottom:0.8rem;">' 
+            f'<span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Coverage</span>' 
+            f'<span style="font-size:0.82rem;font-weight:700;color:#0e1117;">{n_countries} countries</span>' 
+            f'<span style="color:#e6e6e6;">|</span>' 
+            f'<span style="font-size:0.82rem;color:#6b7280;">{n_areas} areas · {n_sc_geo} scenarios</span>' 
+            f'<span style="color:#e6e6e6;">|</span>' 
+            f'<span style="font-size:0.72rem;color:#9ca3af;font-style:italic;">Click paese → scenari specifici + area &nbsp;·&nbsp; Click card area → tutti gli scenari area</span>' 
             f'</div>',
             unsafe_allow_html=True
         )
@@ -1244,66 +1305,110 @@ elif st.session_state.mode == 'map':
             on_select='rerun', key='geo_map', selection_mode='points',
         )
 
-        # Click sulla mappa → trova l'area dall'ISO3 cliccato
         if event and hasattr(event, 'selection') and event.selection:
             pts = event.selection.get('points', [])
             if pts:
                 clicked_iso = pts[0].get('location')
                 if clicked_iso:
-                    clicked_area = _iso3_to_area.get(clicked_iso)
-                    if clicked_area and clicked_area != st.session_state.geo_area:
-                        st.session_state.geo_area = clicked_area
+                    # Controlla se è un paese specifico nel layer 0
+                    if clicked_iso in country_agg['ISO3'].values:
+                        new_sel = {'type': 'country', 'value': clicked_iso}
+                    else:
+                        area = _ISO3_TO_AREA.get(clicked_iso)
+                        new_sel = {'type': 'area', 'value': area} if area else None
+                    if new_sel and new_sel != st.session_state.geo_area:
+                        st.session_state.geo_area = new_sel
                         st.rerun()
 
-        # ── Pannello area selezionata ──────────────────────────────────────────
-        if sel_area:
-            sc_for_area = sorted(geo_filtered[geo_filtered['Area'] == sel_area]['Scenario'].unique())
+        # ── Cards area (sempre visibili sotto la mappa) ───────────────────────
+        area_counts = (
+            geo_filtered.groupby('Area')['Scenario']
+            .nunique().reset_index()
+            .rename(columns={'Scenario': 'n_sc'})
+            .sort_values('n_sc', ascending=False)
+            .reset_index(drop=True)
+        )
+        st.markdown('<div class="section-header">Geographic areas</div>', unsafe_allow_html=True)
+        ncards = min(len(area_counts), 6)
+        card_cols = st.columns(ncards)
+        for i, crow in area_counts.iterrows():
+            if i >= 6: break
+            is_active = (sel and sel['type'] == 'area' and sel['value'] == crow['Area'])
+            label = f"{'✓ ' if is_active else ''}{crow['Area']} ({crow['n_sc']})"
+            with card_cols[i % ncards]:
+                if st.button(label, key=f"geo_area_{crow['Area'].replace(' ', '_')}",
+                             use_container_width=True):
+                    new_sel = {'type': 'area', 'value': crow['Area']}
+                    st.session_state.geo_area = None if (sel == new_sel) else new_sel
+                    st.rerun()
 
+        st.markdown("---")
+
+        # ── Pannello dettaglio ─────────────────────────────────────────────────
+        if sel:
             col_hdr, col_close = st.columns([8, 1.2])
-            with col_hdr:
-                st.markdown(
-                    f'<div class="section-header">🌍 {sel_area} — '
-                    f'{len(sc_for_area)} scenario{"s" if len(sc_for_area)!=1 else ""}</div>',
-                    unsafe_allow_html=True
-                )
             with col_close:
                 if st.button("✕ Deselect", key="geo_desel"):
                     st.session_state.geo_area = None
                     st.rerun()
 
-            df_geo_scenarios = df[df['Scenario'].isin(sc_for_area)].copy()
-            if df_geo_scenarios.empty:
-                st.info("No shock detail available for these scenarios.")
-            else:
-                render_export_row(df_geo_scenarios, df_geo_scenarios,
-                                  f"geo_{sel_area.replace(' ', '_')}")
-                render_scenario_rows(df_geo_scenarios, df, th_class="", path_mode=True)
+            if sel['type'] == 'country':
+                iso3      = sel['value']
+                area_name = country_agg[country_agg['ISO3'] == iso3]['Area'].values
+                area_name = area_name[0] if len(area_name) else iso3
 
-        else:
-            # ── Card per area (quando nessuna area è selezionata) ──────────────
-            st.markdown('<div class="section-header">Geographic areas with mapped scenarios</div>',
-                        unsafe_allow_html=True)
+                # ── A) Scenari con fattori specifici di questo paese ──────────
+                sc_specific = sorted(
+                    country_df[country_df['ISO3'] == iso3]['Scenario'].unique()
+                )
+                with col_hdr:
+                    st.markdown(
+                        f'<div class="section-header">🏳 {iso3} ({area_name}) — ' 
+                        f'{len(sc_specific)} specific scenario{"s" if len(sc_specific)!=1 else ""}</div>',
+                        unsafe_allow_html=True
+                    )
+                df_specific = df[df['Scenario'].isin(sc_specific)].copy()
+                if not df_specific.empty:
+                    render_export_row(df_specific, df_specific,
+                                      f"geo_country_{iso3}_specific")
+                    render_scenario_rows(df_specific, df, th_class="", path_mode=True)
+                else:
+                    st.info("No shock detail for specific country scenarios.")
 
-            area_counts = (
-                geo_filtered.groupby('Area')['Scenario']
-                .nunique().reset_index()
-                .rename(columns={'Scenario': 'n_scenarios'})
-                .sort_values('n_scenarios', ascending=False)
-                .reset_index(drop=True)
-            )
+                # ── B) Tutti gli scenari dell'area ────────────────────────────
+                sc_area = sorted(
+                    geo_filtered[geo_filtered['Area'] == area_name]['Scenario'].unique()
+                )
+                sc_area_only = [s for s in sc_area if s not in sc_specific]
 
-            ncards = min(len(area_counts), 6)
-            if ncards > 0:
-                card_cols = st.columns(ncards)
-                for i, crow in area_counts.iterrows():
-                    if i >= 6:
-                        break
-                    with card_cols[i % ncards]:
-                        lbl = f"{crow['Area']} ({crow['n_scenarios']})"
-                        if st.button(lbl, key=f"geo_card_{crow['Area'].replace(' ', '_')}",
-                                     use_container_width=True):
-                            st.session_state.geo_area = crow['Area']
-                            st.rerun()
+                st.markdown(
+                    f'<div class="section-header" style="margin-top:2rem;">🌍 All {area_name} scenarios ' 
+                    f'({len(sc_area)} total)</div>',
+                    unsafe_allow_html=True
+                )
+                df_area = df[df['Scenario'].isin(sc_area)].copy()
+                if not df_area.empty:
+                    render_export_row(df_area, df_area, f"geo_area_{area_name}")
+                    render_scenario_rows(df_area, df, th_class="", path_mode=True)
+
+            else:  # type == 'area'
+                area_name = sel['value']
+                sc_area   = sorted(
+                    geo_filtered[geo_filtered['Area'] == area_name]['Scenario'].unique()
+                )
+                with col_hdr:
+                    st.markdown(
+                        f'<div class="section-header">🌍 {area_name} — ' 
+                        f'{len(sc_area)} scenario{"s" if len(sc_area)!=1 else ""}</div>',
+                        unsafe_allow_html=True
+                    )
+                df_area = df[df['Scenario'].isin(sc_area)].copy()
+                if df_area.empty:
+                    st.info("No shock detail available.")
+                else:
+                    render_export_row(df_area, df_area, f"geo_{area_name.replace(' ','_')}")
+                    render_scenario_rows(df_area, df, th_class="", path_mode=True)
+
 
 # ─── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("<br><br>", unsafe_allow_html=True)
