@@ -200,7 +200,7 @@ def load_data():
           .drop_duplicates(subset='Scenario')[['Scenario', 'Description']]
           .set_index('Scenario')['Description']
           .to_dict()
-    )
+    ) if 'Description' in df.columns else {}
     type_map = (
         df.drop_duplicates(subset='Scenario')[['Scenario', 'Scenario Type']]
           .set_index('Scenario')['Scenario Type']
@@ -213,62 +213,58 @@ try:
 except FileNotFoundError:
     st.error(f"File `{FILE_PATH}` not found.")
     st.stop()
+
 # ─── GEO DATA ─────────────────────────────────────────────────────────────────
+
+# ISO3 rappresentativi per area geografica
+_AREA_TO_ISO3 = {
+    'US':               ['USA'],
+    'North America':    ['USA', 'CAN'],
+    'Europe':           ['GBR', 'DEU', 'FRA', 'ITA', 'ESP', 'CHE', 'NLD',
+                         'BEL', 'SWE', 'NOR', 'DNK', 'FIN', 'AUT', 'POL',
+                         'PRT', 'GRC', 'IRL', 'LUX'],
+    'Japan':            ['JPN'],
+    'Pacific ex Japan': ['AUS', 'HKG', 'SGP', 'NZL', 'KOR', 'TWN'],
+    'Emerging Markets': ['CHN', 'IND', 'BRA', 'MEX', 'RUS', 'ZAF', 'TUR',
+                         'SAU', 'IDN', 'THA', 'MYS', 'PHL', 'PAK', 'ARG',
+                         'CHL', 'COL', 'PER', 'VEN', 'EGY', 'MAR', 'NGA',
+                         'QAT', 'ARE', 'ISR', 'HUN', 'CZE', 'UKR', 'VNM'],
+}
+
+_AREA_ORDER = ['US', 'Europe', 'Emerging Markets', 'Japan',
+               'Pacific ex Japan', 'North America']
+
+
 @st.cache_data
 def load_geo_data():
-    pivot = pd.read_excel(FILE_PATH, sheet_name="Pivot", index_col=0)
-    COUNTRY_MAP = {
-        "Argentina": ("ARG", "Argentina"),
-        "Brazil": ("BRA", "Brazil"), "Brazil Bovespa": ("BRA", "Brazil"),
-        "Canada": ("CAN", "Canada"),
-        "China Shanghai SECmp": ("CHN", "China"), "China Shenzhen SEAll": ("CHN", "China"),
-        "China Domestic": ("CHN", "China"), "China Offshore": ("CHN", "China"),
-        "Denmark OMX Copenhag20": ("DNK", "Denmark"),
-        "France CAC 40": ("FRA", "France"), "EU Corp France": ("FRA", "France"),
-        "Greece ASE/General": ("GRC", "Greece"),
-        "Hungary": ("HUN", "Hungary"), "Hungary BUX": ("HUN", "Hungary"),
-        "India BSE 100": ("IND", "India"),
-        "Indonesia": ("IDN", "Indonesia"),
-        "Ireland ISEQ/General": ("IRL", "Ireland"),
-        "Italy S&P MIB": ("ITA", "Italy"), "Italy RE": ("ITA", "Italy"),
-        "EU Corp Italy": ("ITA", "Italy"),
-        "Korea KOSPI Comp": ("KOR", "South Korea"),
-        "Luxembourg LUXX": ("LUX", "Luxembourg"),
-        "Mexico": ("MEX", "Mexico"),
-        "Netherlands AEX Stk": ("NLD", "Netherlands"),
-        "Pakistan": ("PAK", "Pakistan"), "Pakistan KSE 100": ("PAK", "Pakistan"),
-        "Philippines PSEi": ("PHL", "Philippines"),
-        "Poland WIG": ("POL", "Poland"),
-        "Portugal PSI 20": ("PRT", "Portugal"),
-        "Qatar": ("QAT", "Qatar"),
-        "Russia": ("RUS", "Russia"), "Russia RTS": ("RUS", "Russia"),
-        "Saudi Arabia": ("SAU", "Saudi Arabia"),
-        "Singapore StraitsTms": ("SGP", "Singapore"),
-        "South Africa": ("ZAF", "South Africa"),
-        "Spain IBEX 35": ("ESP", "Spain"),
-        "Sweden OMX": ("SWE", "Sweden"),
-        "Switzerland SMI": ("CHE", "Switzerland"),
-        "Taiwan": ("TWN", "Taiwan"), "Taiwan TSEC": ("TWN", "Taiwan"),
-        "Taiwan TWSE": ("TWN", "Taiwan"),
-        "Turkey": ("TUR", "Turkey"), "Turkey ISE Natl 100": ("TUR", "Turkey"),
-        "Ukraine": ("UKR", "Ukraine"),
-        "United Kingdom": ("GBR", "United Kingdom"),
-        "Venezuela": ("VEN", "Venezuela"),
-        "Viet Nam": ("VNM", "Vietnam"),
-        "Austria ATX": ("AUT", "Austria"),
-        "Belgium 20": ("BEL", "Belgium"),
-        "EU Corp Germany": ("DEU", "Germany"),
-    }
+    df_raw = pd.read_excel(FILE_PATH, sheet_name="Shocks")
+    if 'Country' not in df_raw.columns:
+        return pd.DataFrame()
+
+    sub = df_raw[df_raw['Country'].notna()][
+        ['Scenario', 'Scenario Type', 'Country', 'Value']
+    ].copy()
+
+    # Valore medio per (Scenario, Scenario Type, Area)
+    grp = (
+        sub.groupby(['Scenario', 'Scenario Type', 'Country'])['Value']
+        .mean().reset_index()
+        .rename(columns={'Country': 'Area'})
+    )
+
+    # Espandi ogni area nei suoi ISO3 rappresentativi
     rows = []
-    for scenario in pivot.index:
-        row = pivot.loc[scenario]
-        seen_iso = set()
-        for col, (iso3, country_name) in COUNTRY_MAP.items():
-            if col in row.index and pd.notna(row[col]) and iso3 not in seen_iso:
-                rows.append({"Scenario": scenario, "ISO3": iso3,
-                             "Country": country_name, "Value": row[col]})
-                seen_iso.add(iso3)
+    for _, row in grp.iterrows():
+        for iso3 in _AREA_TO_ISO3.get(row['Area'], []):
+            rows.append({
+                'Scenario':      row['Scenario'],
+                'Scenario Type': row['Scenario Type'],
+                'Area':          row['Area'],
+                'ISO3':          iso3,
+                'Value':         row['Value'],
+            })
     return pd.DataFrame(rows)
+
 
 try:
     geo_df = load_geo_data()
@@ -280,16 +276,11 @@ except Exception:
 
 # ─── EXPORT ───────────────────────────────────────────────────────────────────
 def build_export_bytes(df_sub, include_all_scenarios=False):
-    """Esporta shocks in Excel.
-    Se include_all_scenarios=True, aggiunge righe vuote per scenari
-    presenti in desc_map/type_map ma senza shocks nel df_sub.
-    """
     cols_out = ['Scenario', 'Scenario Type', 'Description', 'Factor',
                 'Value', 'Unit', 'Extra', 'L3', 'L2', 'L1']
     cols_out = [c for c in cols_out if c in df_sub.columns]
 
     if include_all_scenarios:
-        # Tutti gli scenari noti
         all_known = set(desc_map.keys()) | set(type_map.keys())
         present   = set(df_sub['Scenario'].unique())
         missing   = all_known - present
@@ -322,7 +313,7 @@ def build_export_bytes(df_sub, include_all_scenarios=False):
 for k, v in {
     'sel_l1_set': set(), 'sel_l1_single': None, 'sel_l2': None, 'sel_l3': None,
     'mode': 'drill', 'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None,
-    'scenario_type': 'All', 'geo_country': None,
+    'scenario_type': 'All', 'geo_area': None,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -372,16 +363,17 @@ with col_m1:
     if st.button("🔍 Single Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'drill', 'sel_l1_set': set(), 'sel_l1_single': None,
                                   'sel_l2': None, 'sel_l3': None, 'shock_filter': 'all',
-                                  'quick_view': None, 'multi_dir_filter': None, 'geo_country': None})
+                                  'quick_view': None, 'multi_dir_filter': None, 'geo_area': None})
         st.rerun()
 with col_m2:
     if st.button("🔀 Multi Asset Class Analysis", use_container_width=True):
         st.session_state.update({'mode': 'multi', 'sel_l2': None, 'sel_l3': None,
-                                  'shock_filter': 'all', 'quick_view': None, 'multi_dir_filter': None, 'geo_country': None})
+                                  'shock_filter': 'all', 'quick_view': None,
+                                  'multi_dir_filter': None, 'geo_area': None})
         st.rerun()
 with col_m3:
     if st.button("🌍 Geographic Map", use_container_width=True):
-        st.session_state.update({'mode': 'map', 'geo_country': None})
+        st.session_state.update({'mode': 'map', 'geo_area': None})
         st.rerun()
 with col_m4:
     inner_left, inner_right = st.columns([5, 3])
@@ -445,7 +437,7 @@ with col_m4:
     """, unsafe_allow_html=True)
 st.markdown("---")
 
-# ─── FILTRO SCENARIO TYPE — chip visivi + bottoni Streamlit overlay invisibili ─
+# ─── FILTRO SCENARIO TYPE ──────────────────────────────────────────────────────
 _sc_brs   = df[df['Scenario Type'] == 'BRS']['Scenario'].nunique()
 _sc_ec    = df[df['Scenario Type'] == 'EC']['Scenario'].nunique()
 _sc_all   = df['Scenario'].nunique()
@@ -454,14 +446,8 @@ _cur_type = st.session_state.scenario_type
 def _chip_cls(kind, active):
     return f"chip-visual chip-{kind}" + (" chip-active" if active else "")
 
-# CSS: rende i bottoni Streamlit nelle colonne chip completamente trasparenti
-# e li sovrappone esattamente al chip visivo sottostante.
 st.markdown("""
 <style>
-/* Wrapper colonna chip: position relative per consentire overlay assoluto */
-.chip-col-wrap { position: relative; display: inline-block; }
-
-/* Il chip HTML visivo — non intercetta click */
 .chip-visual { pointer-events: none; display: inline-flex; align-items: center;
     gap: 5px; font-size: 0.72rem; font-weight: 600; padding: 5px 16px;
     border-radius: 20px; border: 1.5px solid transparent; white-space: nowrap;
@@ -472,73 +458,13 @@ st.markdown("""
 .chip-all.chip-active  { background:#1f2937; color:#fff;    border-color:#1f2937; }
 .chip-brs.chip-active  { background:#1d4ed8; color:#fff;    border-color:#1d4ed8; }
 .chip-ec.chip-active   { background:#15803d; color:#fff;    border-color:#15803d; }
-
-/* Bottoni Streamlit nelle tre colonne chip: trasparenti, coprono tutto lo spazio */
-div[data-testid="column"]:has(> div > div > div > button[kind="secondary"].chip-overlay-btn) button,
-.chip-overlay-col button {
-    opacity: 0 !important;
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    cursor: pointer !important;
-    z-index: 10 !important;
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Contenitore flex per chip + bottone sovrapposto */
-.chip-slot {
-    position: relative;
-    display: inline-flex;
-    align-items: stretch;
-}
-.chip-slot button {
-    position: absolute !important;
-    inset: 0 !important;
-    opacity: 0 !important;
-    cursor: pointer !important;
-    z-index: 5 !important;
-    width: 100% !important;
-    height: 100% !important;
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Chip bar visiva (HTML puro, pointer-events:none)
-st.markdown(f"""
-<div style="display:flex;align-items:center;gap:8px;background:#f8f9fb;
-            border:1px solid #e6e6e6;border-radius:8px;padding:7px 14px;
-            margin-bottom:0.6rem;">
-  <span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;
-               letter-spacing:0.08em;white-space:nowrap;margin-right:4px;">Scenario type</span>
-  <span class="{_chip_cls('all', _cur_type=='All')}">All
-    <span style="font-weight:400;font-size:0.65rem;">({_sc_all})</span></span>
-  <span class="{_chip_cls('brs', _cur_type=='BRS')}">BRS
-    <span style="font-weight:400;font-size:0.65rem;">({_sc_brs})</span></span>
-  <span class="{_chip_cls('ec',  _cur_type=='EC')}">EC
-    <span style="font-weight:400;font-size:0.65rem;">({_sc_ec})</span></span>
-</div>
-""", unsafe_allow_html=True)
-
-# Bottoni Streamlit invisibili sovrapposti — stessa larghezza dei chip tramite colonne strette
-# Usiamo CSS per azzerare completamente la loro visibilità.
-st.markdown("""
-<style>
-/* Selettore specifico per i tre bottoni chip: rende tutto trasparente */
 div[data-testid="stHorizontalBlock"]:has(button[data-testid="baseButton-secondary"]) {
-    margin-top: -2.15rem !important;   /* risale sopra la chip bar */
+    margin-top: -2.15rem !important;
     height: 2.1rem !important;
     overflow: visible !important;
     position: relative !important;
     z-index: 20 !important;
 }
-/* I singoli bottoni nelle colonne overlay */
 div[data-testid="stHorizontalBlock"]:has(button[data-testid="baseButton-secondary"])
   button[data-testid="baseButton-secondary"] {
     opacity: 0 !important;
@@ -555,7 +481,21 @@ div[data-testid="stHorizontalBlock"]:has(button[data-testid="baseButton-secondar
 </style>
 """, unsafe_allow_html=True)
 
-# I bottoni reali Streamlit che catturano il click — completamente invisibili grazie al CSS sopra
+st.markdown(f"""
+<div style="display:flex;align-items:center;gap:8px;background:#f8f9fb;
+            border:1px solid #e6e6e6;border-radius:8px;padding:7px 14px;
+            margin-bottom:0.6rem;">
+  <span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;
+               letter-spacing:0.08em;white-space:nowrap;margin-right:4px;">Scenario type</span>
+  <span class="{_chip_cls('all', _cur_type=='All')}">All
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_all})</span></span>
+  <span class="{_chip_cls('brs', _cur_type=='BRS')}">BRS
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_brs})</span></span>
+  <span class="{_chip_cls('ec',  _cur_type=='EC')}">EC
+    <span style="font-weight:400;font-size:0.65rem;">({_sc_ec})</span></span>
+</div>
+""", unsafe_allow_html=True)
+
 _tc1, _tc2, _tc3, _tc_spacer = st.columns([1, 1, 1, 9])
 with _tc1:
     if st.button(f"All", key="tf_all", use_container_width=True):
@@ -576,14 +516,13 @@ with _tc3:
                                   'shock_filter': 'all', 'quick_view': None})
         st.rerun()
 
-# Applica filtro tipo su df
 _type_sel = st.session_state.scenario_type
 if _type_sel in ('BRS', 'EC'):
     df = df[df['Scenario Type'] == _type_sel]
 
 st.markdown("---")
 
-# ─── JS: colora bottoni Positive/Negative ──────────────────────────────────────
+# ─── JS colora bottoni ─────────────────────────────────────────────────────────
 components.html("""
 <script>
 (function() {
@@ -765,7 +704,7 @@ def render_quick_view(df_context, col_name):
         label      = f"▼ Negative scenarios — {item}"
         df_display = df_item[df_item['Scenario'].isin(matching)]
         df_display = df_display[df_display['Value'].notna() & (df_display['Value'] < 0)]
-    else:  # zero / mixed
+    else:
         th_class   = "mix-th"
         label      = f"~ Mixed scenarios — {item}"
         df_display = df_item[df_item['Scenario'].isin(matching)]
@@ -1188,7 +1127,7 @@ elif st.session_state.mode == 'multi':
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODE C — GEOGRAPHIC MAP
+# MODE C — GEOGRAPHIC MAP  (completamente riscritto)
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.mode == 'map':
     import plotly.graph_objects as go
@@ -1196,34 +1135,41 @@ elif st.session_state.mode == 'map':
     if not GEO_AVAILABLE or geo_df.empty:
         st.warning("Geographic data not available.")
     else:
+        # Filtra per scenario type se necessario
         _type_sel_geo = st.session_state.scenario_type
         geo_filtered = geo_df.copy()
         if _type_sel_geo in ('BRS', 'EC'):
             valid_scenarios = df['Scenario'].unique()
             geo_filtered = geo_filtered[geo_filtered['Scenario'].isin(valid_scenarios)]
 
-        country_agg = (
-            geo_filtered.groupby(['ISO3', 'Country'])['Scenario']
+        sel_area = st.session_state.geo_area
+
+        # ── Aggrega per ISO3: n_scenari per country (un ISO3 riceve il conteggio dell'area) ──
+        iso3_agg = (
+            geo_filtered.groupby(['ISO3', 'Area'])['Scenario']
             .nunique().reset_index()
             .rename(columns={'Scenario': 'n_scenarios'})
         )
 
-        sel_country = st.session_state.geo_country
-        max_n = max(country_agg['n_scenarios'].max(), 1)
-
+        # ── Hover text ────────────────────────────────────────────────────────
         hover_texts = []
-        for _, row in country_agg.iterrows():
-            scs = sorted(geo_filtered[geo_filtered['ISO3'] == row['ISO3']]['Scenario'].unique())
+        for _, row in iso3_agg.iterrows():
+            area_name = row['Area']
+            scs = sorted(geo_filtered[geo_filtered['Area'] == area_name]['Scenario'].unique())
             sc_list = '<br>'.join(f'  · {s}' for s in scs[:8])
             if len(scs) > 8:
                 sc_list += f'<br>  ... +{len(scs)-8} more'
-            hover_texts.append(f"<b>{row['Country']}</b><br>Scenarios: <b>{row['n_scenarios']}</b><br><br>{sc_list}")
+            hover_texts.append(
+                f"<b>{area_name}</b><br>Scenarios: <b>{row['n_scenarios']}</b><br><br>{sc_list}"
+            )
 
+        max_n = max(iso3_agg['n_scenarios'].max(), 1)
+
+        # ── Choropleth principale ─────────────────────────────────────────────
         fig = go.Figure(go.Choropleth(
-            locations=country_agg['ISO3'],
-            z=country_agg['n_scenarios'],
-            text=country_agg['Country'],
-            customdata=list(zip(country_agg['ISO3'], country_agg['Country'], hover_texts)),
+            locations=iso3_agg['ISO3'],
+            z=iso3_agg['n_scenarios'],
+            customdata=list(zip(iso3_agg['ISO3'], iso3_agg['Area'], hover_texts)),
             hovertemplate='%{customdata[2]}<extra></extra>',
             colorscale=[
                 [0.0,  '#fff5f5'], [0.25, '#fca5a5'],
@@ -1240,12 +1186,15 @@ elif st.session_state.mode == 'map':
             ),
         ))
 
-        if sel_country:
-            sel_row = country_agg[country_agg['ISO3'] == sel_country]
-            if not sel_row.empty:
+        # Highlight area selezionata
+        if sel_area:
+            sel_iso3_list = [r['ISO3'] for _, r in iso3_agg.iterrows() if r['Area'] == sel_area]
+            if sel_iso3_list:
+                sel_z = [iso3_agg[iso3_agg['ISO3'] == iso3]['n_scenarios'].values[0]
+                         for iso3 in sel_iso3_list]
                 fig.add_trace(go.Choropleth(
-                    locations=[sel_country],
-                    z=[sel_row['n_scenarios'].values[0]],
+                    locations=sel_iso3_list,
+                    z=sel_z,
                     colorscale=[[0, '#ff4b4b'], [1, '#ff4b4b']],
                     showscale=False,
                     marker_line_color='#ff4b4b', marker_line_width=3,
@@ -1264,73 +1213,90 @@ elif st.session_state.mode == 'map':
             margin=dict(l=0, r=0, t=8, b=0), height=480,
         )
 
-        n_countries = len(country_agg)
+        # ── Info strip ────────────────────────────────────────────────────────
+        n_areas = geo_filtered['Area'].nunique()
         n_sc_geo = geo_filtered['Scenario'].nunique()
         st.markdown(
             f'<div style="display:flex;align-items:center;gap:16px;background:#f8f9fb;'
             f'border:1px solid #e6e6e6;border-radius:8px;padding:8px 16px;margin-bottom:0.8rem;">'
             f'<span style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Geographic Coverage</span>'
-            f'<span style="font-size:0.82rem;font-weight:700;color:#0e1117;">{n_countries} countries</span>'
+            f'<span style="font-size:0.82rem;font-weight:700;color:#0e1117;">{n_areas} areas</span>'
             f'<span style="color:#e6e6e6;">|</span>'
             f'<span style="font-size:0.82rem;color:#6b7280;">{n_sc_geo} scenarios mapped</span>'
             f'<span style="color:#e6e6e6;">|</span>'
-            f'<span style="font-size:0.72rem;color:#9ca3af;font-style:italic;">Click a country on the map to view its scenarios</span>'
+            f'<span style="font-size:0.72rem;color:#9ca3af;font-style:italic;">Click a region on the map to view its scenarios</span>'
             f'</div>',
             unsafe_allow_html=True
         )
 
+        # ── Mappa ─────────────────────────────────────────────────────────────
         event = st.plotly_chart(
             fig, use_container_width=True,
             on_select='rerun', key='geo_map', selection_mode='points',
         )
 
+        # Click sulla mappa → trova l'area dall'ISO3 cliccato
         if event and hasattr(event, 'selection') and event.selection:
             pts = event.selection.get('points', [])
             if pts:
                 clicked_iso = pts[0].get('location')
-                if clicked_iso and clicked_iso != st.session_state.geo_country:
-                    st.session_state.geo_country = clicked_iso
-                    st.rerun()
+                if clicked_iso:
+                    # Trova l'area corrispondente all'ISO3 cliccato
+                    area_rows = iso3_agg[iso3_agg['ISO3'] == clicked_iso]
+                    if not area_rows.empty:
+                        clicked_area = area_rows.iloc[0]['Area']
+                        if clicked_area != st.session_state.geo_area:
+                            st.session_state.geo_area = clicked_area
+                            st.rerun()
 
-        if sel_country:
-            sel_name_arr = country_agg[country_agg['ISO3'] == sel_country]['Country'].values
-            sel_name = sel_name_arr[0] if len(sel_name_arr) else sel_country
-            sc_for_country = sorted(geo_filtered[geo_filtered['ISO3'] == sel_country]['Scenario'].unique())
+        # ── Pannello area selezionata ──────────────────────────────────────────
+        if sel_area:
+            sc_for_area = sorted(geo_filtered[geo_filtered['Area'] == sel_area]['Scenario'].unique())
 
             col_hdr, col_close = st.columns([8, 1.2])
             with col_hdr:
                 st.markdown(
-                    f'<div class="section-header">🌍 {sel_name} — '
-                    f'{len(sc_for_country)} scenario{"s" if len(sc_for_country)!=1 else ""}</div>',
+                    f'<div class="section-header">🌍 {sel_area} — '
+                    f'{len(sc_for_area)} scenario{"s" if len(sc_for_area)!=1 else ""}</div>',
                     unsafe_allow_html=True
                 )
             with col_close:
                 if st.button("✕ Deselect", key="geo_desel"):
-                    st.session_state.geo_country = None
+                    st.session_state.geo_area = None
                     st.rerun()
 
-            df_geo_scenarios = df[df['Scenario'].isin(sc_for_country)].copy()
+            df_geo_scenarios = df[df['Scenario'].isin(sc_for_area)].copy()
             if df_geo_scenarios.empty:
                 st.info("No shock detail available for these scenarios.")
             else:
                 render_export_row(df_geo_scenarios, df_geo_scenarios,
-                                  f"geo_{sel_country}_{sel_name.replace(' ', '_')}")
+                                  f"geo_{sel_area.replace(' ', '_')}")
                 render_scenario_rows(df_geo_scenarios, df, th_class="", path_mode=True)
 
         else:
-            st.markdown('<div class="section-header">Countries with mapped scenarios</div>',
+            # ── Card per area (quando nessuna area è selezionata) ──────────────
+            st.markdown('<div class="section-header">Geographic areas with mapped scenarios</div>',
                         unsafe_allow_html=True)
-            sorted_agg = country_agg.sort_values('n_scenarios', ascending=False).reset_index(drop=True)
-            ncards = min(len(sorted_agg), 6)
+
+            area_counts = (
+                geo_filtered.groupby('Area')['Scenario']
+                .nunique().reset_index()
+                .rename(columns={'Scenario': 'n_scenarios'})
+                .sort_values('n_scenarios', ascending=False)
+                .reset_index(drop=True)
+            )
+
+            ncards = min(len(area_counts), 6)
             if ncards > 0:
                 card_cols = st.columns(ncards)
-                for i, crow in sorted_agg.iterrows():
+                for i, crow in area_counts.iterrows():
                     if i >= 6:
                         break
                     with card_cols[i % ncards]:
-                        lbl = f"{crow['Country']} ({crow['n_scenarios']})"
-                        if st.button(lbl, key=f"geo_card_{crow['ISO3']}", use_container_width=True):
-                            st.session_state.geo_country = crow['ISO3']
+                        lbl = f"{crow['Area']} ({crow['n_scenarios']})"
+                        if st.button(lbl, key=f"geo_card_{crow['Area'].replace(' ', '_')}",
+                                     use_container_width=True):
+                            st.session_state.geo_area = crow['Area']
                             st.rerun()
 
 # ─── FOOTER ────────────────────────────────────────────────────────────────────
