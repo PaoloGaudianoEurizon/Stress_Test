@@ -1144,12 +1144,21 @@ elif st.session_state.mode == 'map':
 
         sel_area = st.session_state.geo_area
 
-        # ── Aggrega per ISO3: n_scenari per country (un ISO3 riceve il conteggio dell'area) ──
-        iso3_agg = (
+        # ── Aggrega per ISO3: prende l'area con più scenari per ogni ISO3 ────
+        # (evita duplicati: USA appare sia per 'US' che 'North America')
+        _iso3_full = (
             geo_filtered.groupby(['ISO3', 'Area'])['Scenario']
             .nunique().reset_index()
             .rename(columns={'Scenario': 'n_scenarios'})
         )
+        # Per ogni ISO3 tieni solo l'area con n_scenarios massimo
+        iso3_agg = (
+            _iso3_full.sort_values('n_scenarios', ascending=False)
+            .drop_duplicates(subset='ISO3')
+            .reset_index(drop=True)
+        )
+        # Mappa ISO3 -> Area (serve per il click)
+        _iso3_to_area = dict(zip(iso3_agg['ISO3'], iso3_agg['Area']))
 
         # ── Hover text ────────────────────────────────────────────────────────
         hover_texts = []
@@ -1241,13 +1250,10 @@ elif st.session_state.mode == 'map':
             if pts:
                 clicked_iso = pts[0].get('location')
                 if clicked_iso:
-                    # Trova l'area corrispondente all'ISO3 cliccato
-                    area_rows = iso3_agg[iso3_agg['ISO3'] == clicked_iso]
-                    if not area_rows.empty:
-                        clicked_area = area_rows.iloc[0]['Area']
-                        if clicked_area != st.session_state.geo_area:
-                            st.session_state.geo_area = clicked_area
-                            st.rerun()
+                    clicked_area = _iso3_to_area.get(clicked_iso)
+                    if clicked_area and clicked_area != st.session_state.geo_area:
+                        st.session_state.geo_area = clicked_area
+                        st.rerun()
 
         # ── Pannello area selezionata ──────────────────────────────────────────
         if sel_area:
